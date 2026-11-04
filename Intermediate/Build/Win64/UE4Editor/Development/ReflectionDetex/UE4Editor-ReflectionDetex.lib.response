@@ -1,0 +1,13 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UE4Editor-ReflectionDetex.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Intermediate\Build\Win64\FortniteEditor\Development\CoreUObject\SharedPCH.CoreUObject.h.obj"
+"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\ReflectionDetex\Module.ReflectionDetex.cpp.obj"
+"D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\Default.rc2.res"
+/OUT:"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\ReflectionDetex\UE4Editor-ReflectionDetex.lib"
+/INCLUDE:IMPLEMENT_MODULE_ReflectionDetex
