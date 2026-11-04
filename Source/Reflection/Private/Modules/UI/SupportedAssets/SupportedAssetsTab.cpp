@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/UI/SupportedAssets/SupportedAssetsTab.h"
 
 #include "Modules/UI/SupportedAssets/SSupportedAssetsPanel.h"
@@ -30,14 +29,12 @@ void FSupportedAssetsTab::Unregister() {
 }
 
 void FSupportedAssetsTab::Open() {
-	/* TryInvokeTab only arrived in 4.26, InvokeTab is the same call that asserts instead */
 #if UE4_25_BELOW
 	FGlobalTabmanager::Get()->InvokeTab(TabId);
 #else
 	FGlobalTabmanager::Get()->TryInvokeTab(TabId);
 #endif
 
-	/* An already open tab is holding whatever the registries looked like when it was spawned */
 	if (const TSharedPtr<SSupportedAssetsPanel> Panel = ActivePanel.Pin()) {
 		Panel->Refresh();
 	}

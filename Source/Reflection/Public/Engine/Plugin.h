@@ -1,10 +1,7 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "Engine/Compatibility.h"
 
-/* FPluginUtils lives in the PluginUtils plugin, which did not ship before 4.26 */
 #if UE4_25_BELOW
 #include "Interfaces/IProjectManager.h"
 #include "PluginDescriptor.h"
@@ -22,9 +19,7 @@ inline TSharedPtr<IPlugin> GetPlugin(const FString& Name) {
 	return IPluginManager::Get().FindPlugin(Name);
 }
 
-/* Creates a plugin in the name (may result in bugs if inputted wrong) */
 static void CreatePlugin(FString PluginName) {
-	/* Plugin creation is different between UE5 and UE4 */
 #if ENGINE_UE5
 	FPluginUtils::FNewPluginParamsWithDescriptor CreationParams;
 	CreationParams.Descriptor.bCanContainContent = true;
@@ -42,9 +37,6 @@ static void CreatePlugin(FString PluginName) {
 
 	FPluginUtils::CreateAndLoadNewPlugin(PluginName, FPaths::ProjectPluginsDir(), CreationParams, LoadParams);
 #elif UE4_25_BELOW
-	/* Without FPluginUtils the content only plugin has to be laid down by hand. These are the
-	 * same steps FPluginUtils::CreateAndMountNewPlugin takes once the code paths, icon, and
-	 * template folders it also handles are stripped out, none of which apply here. */
 	const FString PluginFolder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectPluginsDir(), PluginName));
 	const FString PluginFilePath = FPaths::Combine(PluginFolder, PluginName + TEXT(".uplugin"));
 	const FString PluginContentFolder = FPaths::Combine(PluginFolder, TEXT("Content"));
@@ -66,12 +58,10 @@ static void CreatePlugin(FString PluginName) {
 		Descriptor.bCanContainContent = true;
 
 		if (Descriptor.Save(PluginFilePath, FailReason)) {
-			/* Project/Plugins is already a search path, so registering it is just a refresh */
 			IPluginManager::Get().RefreshPluginsList();
 
 			IProjectManager::Get().SetPluginEnabled(PluginName, true, FailReason);
 
-			/* Mounts the content folder and loads any modules, of which there are none here */
 			IPluginManager::Get().MountNewlyCreatedPlugin(PluginName);
 		}
 	}
@@ -90,11 +80,9 @@ static void CreatePlugin(FString PluginName) {
 
 #define LOCTEXT_NAMESPACE "UMG"
 #if WITH_EDITOR
-	/* Setup notification's arguments */
 	FFormatNamedArguments Args;
 	Args.Add(TEXT("PluginName"), FText::FromString(PluginName));
 
-	/* Create notification */
 	FNotificationInfo Info(FText::Format(LOCTEXT("PluginCreated", "Plugin Created: {PluginName}"), Args));
 	Info.ExpireDuration = 10.0f;
 	Info.bUseLargeFont = true;

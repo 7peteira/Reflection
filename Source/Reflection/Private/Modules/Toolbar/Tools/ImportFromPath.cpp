@@ -1,39 +1,58 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Toolbar/Tools/ImportFromPath.h"
 
 #include "Containers/Export.h"
+#include "Importers/Constructor/ImportIssues.h"
 #include "Importers/Constructor/ImportReader.h"
 #include "Importers/Types/Texture/TextureImporter.h"
+#include "Importers/Types/World/LevelRead.h"
+#include "Importers/Types/World/LevelRead.h"
 #include "Importers/Types/Texture/TextureTypes.h"
 #include "Modules/Cloud/Cloud.h"
 #include "Modules/Cloud/Remote.h"
+#include "Modules/Toolbar/Tools/ImportFolder.h"
 #include "Modules/UI/Reflect/SReflectPathsDialog.h"
 #include "Engine/EngineUtilities.h"
-#include "Utilities/Dialog.h"
 
 void TToolImportFromPath::Execute() {
-	if (!Cloud::Status::IsOpened()) {
-		SpawnPrompt("Reflection", "Cloud isn't running, so there is nowhere to fetch from.");
-
-		return;
-	}
-
-	/* Nothing here goes through the reflect button, so this is where the project name gets fetched */
-	if (!Cloud::EnsureMetadataBlocking()) {
-		SpawnPrompt("Reflection", "Cloud didn't say which project it has loaded, so paths can't be resolved.");
-
-		return;
-	}
-
 	TArray<FString> Paths;
 
-	if (!SReflectPathsDialog::Open(Paths)) {
+	for (;;) {
+		FString Folder;
+
+		const EReflectPathsChoice Choice = SReflectPathsDialog::Open(Paths, Folder);
+
+		if (Choice == EReflectPathsChoice::Folder) {
+			TToolImportFolder Tool;
+
+			if (Tool.Execute(Folder,   true,   true)) {
+				continue;
+			}
+
+			return;
+		}
+
+		if (Choice != EReflectPathsChoice::Reflect) {
+			return;
+		}
+
+		break;
+	}
+
+	if (!Cloud::Status::IsOpened()) {
+		Cloud::Status::NotifyNotRunning();
+
+		return;
+	}
+
+	if (!Cloud::EnsureMetadataBlocking()) {
 		return;
 	}
 
 	int32 Reflected = 0;
 	const int32 Attempted = Paths.Num();
+
+	FImportIssues::Begin();
 
 	for (const FString& Path : Paths) {
 		if (Import(Path)) {
@@ -51,16 +70,14 @@ void TToolImportFromPath::Execute() {
 		true,
 		310.0f
 	);
+
+	FImportIssues::Finish();
 }
 
-bool TToolImportFromPath::Import(const FString& InPath) {
-	/* Take whatever gets pasted: Type'/Game/Path/Asset.Asset', a path with an extension on it,
-	 * or a bare package path */
+bool TToolImportFromPath::Import(const FString& InPath, const TSet<FString>& AllowedTypes, bool* bOutFiltered) {
 	FString PackagePath = StripObjectOuter(InPath.TrimStartAndEnd());
 	PackagePath.ReplaceInline(TEXT("\\"), TEXT("/"));
 
-	/* Cloud cuts everything from the first dot, so an export name or an extension makes no
-	 * difference to it, and the editor path below has to be cut the same way to match */
 	int32 Dot;
 
 	if (PackagePath.FindChar(TEXT('.'), Dot)) {
@@ -73,8 +90,24 @@ bool TToolImportFromPath::Import(const FString& InPath) {
 		return false;
 	}
 
-	/* Reached straight off a menu click, so nothing here has a continuation to hand a callback to.
-	 * The scope is what keeps the editor drawn and cancellable while the requests run. */
+	FString AssetName;
+	PackagePath.Split(TEXT("/"), nullptr, &AssetName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+
+	const auto ReportUnreachable = [&AssetName, &PackagePath, &InPath](const EImportIssue Kind, const TCHAR* Summary) {
+		UE_LOG(LogReflection, Error, TEXT("%s: \"%s\""), Summary, *PackagePath);
+
+		const FString Pasted = InPath.TrimStartAndEnd();
+
+		FImportIssues::ReportFor(
+			AssetName.IsEmpty() ? PackagePath : AssetName,
+			PackagePath,
+			FString(),
+			Kind,
+			Summary,
+			Pasted == PackagePath ? FString() : TEXT("Reflected from ") + Pasted
+		);
+	};
+
 	const FBlockingRequestScope BlockingScope(FText::Format(
 		NSLOCTEXT("Reflection", "ReflectingPath", "Reflecting {0}"),
 		FText::FromString(PackagePath)
@@ -82,14 +115,14 @@ bool TToolImportFromPath::Import(const FString& InPath) {
 
 	const TSharedPtr<FJsonObject> Response = Cloud::Export::GetRawBlocking(PackagePath);
 	if (Response == nullptr || !Response->HasField(TEXT("exports"))) {
-		UE_LOG(LogReflection, Error, TEXT("Cloud has nothing at \"%s\""), *PackagePath);
+		ReportUnreachable(EImportIssue::MissingAsset, TEXT("Cloud has nothing at this path"));
 
 		return false;
 	}
 
 	const TArray<TSharedPtr<FJsonValue>> Exports = Response->GetArrayField(TEXT("exports"));
 	if (Exports.Num() == 0) {
-		UE_LOG(LogReflection, Error, TEXT("Cloud has nothing at \"%s\""), *PackagePath);
+		ReportUnreachable(EImportIssue::MissingAsset, TEXT("Cloud has nothing at this path"));
 
 		return false;
 	}
@@ -98,11 +131,22 @@ bool TToolImportFromPath::Import(const FString& InPath) {
 
 	FString Type;
 	if (!Export.IsValid() || !Export->TryGetStringField(TEXT("Type"), Type)) {
+		ReportUnreachable(EImportIssue::Data, TEXT("Cloud returned an export with no type"));
+
 		return false;
 	}
 
-	FString AssetName;
-	PackagePath.Split(TEXT("/"), nullptr, &AssetName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+	if (AllowedTypes.Num() > 0 && !AllowedTypes.Contains(Type)) {
+		if (bOutFiltered != nullptr) {
+			*bOutFiltered = true;
+		}
+
+		return false;
+	}
+
+	if (FLevelRead::Handles(Exports)) {
+		return FLevelRead::FromCloud(Exports, PackagePath);
+	}
 
 	if (FTextureTypes::IsSupported(Type)) {
 		UTexture* Texture = nullptr;

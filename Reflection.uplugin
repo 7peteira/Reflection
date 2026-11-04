@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.5.0",
+	"VersionName": "1.5.1",
 	"FriendlyName": "Reflection",
 	"Description": "Reconstruction Toolkit for Unreal Engine",
 	"Category": "Tools",
@@ -24,21 +24,21 @@
 			]
 		},
 		{
-    "Name": "ReflectionDetex",
-    "Type": "Editor",
-    "LoadingPhase": "Default",
-    "PlatformDenyList": [
-        "Android"
-    ]
-},
-{
-    "Name": "ReflectionNVTT",
-    "Type": "Editor",
-    "LoadingPhase": "Default",
-    "PlatformDenyList": [
-        "Android"
-    ]
-}	
+			"Name": "ReflectionDetex",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformDenyList": [
+				"Android"
+			]
+		},
+		{
+			"Name": "ReflectionNVTT",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformDenyList": [
+				"Android"
+			]
+		}
 	],
 	"Plugins": [
 		{
@@ -51,7 +51,17 @@
 			"Optional": true
 		},
 		{
+			"Name": "ControlRig",
+			"Enabled": true,
+			"Optional": true
+		},
+		{
 			"Name": "PluginUtils",
+			"Enabled": true,
+			"Optional": true
+		},
+		{
+			"Name": "CurveExpression",
 			"Enabled": true,
 			"Optional": true
 		}

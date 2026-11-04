@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/Animation/AnimationBaseImporter.h"
 
 #include "Animation/AnimMontage.h"

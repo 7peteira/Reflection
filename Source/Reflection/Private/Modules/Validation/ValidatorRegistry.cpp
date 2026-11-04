@@ -1,14 +1,10 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Validation/ValidatorRegistry.h"
 
-/* Validation is UE5 only */
 #if ENGINE_UE5
 
 #include "Engine/Log.h"
 
-/* Registration order is the order the dropdown lists them in, and the first one is what the
- * toolbar button runs, so this stays an array rather than a map */
 static TArray<FReflectionValidator> GRegisteredValidators;
 
 void FReflectionValidatorRegistry::Register(const FReflectionValidator& Validator) {
@@ -22,7 +18,6 @@ void FReflectionValidatorRegistry::Register(const FReflectionValidator& Validato
 		return Existing.Id == Validator.Id;
 	});
 
-	/* Re-registering keeps the original position, so a hot reload doesn't shuffle the dropdown */
 	if (ExistingIndex != INDEX_NONE) {
 		GRegisteredValidators[ExistingIndex] = Validator;
 

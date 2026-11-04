@@ -25,9 +25,9 @@ namespace nv
 			Format_ARGB,
 		};
 
-		Image();
+		NVTT_API Image();
 		Image(const Image & img);
-		~Image();
+		NVTT_API ~Image();
 
 		const Image & operator=(const Image & img);
 

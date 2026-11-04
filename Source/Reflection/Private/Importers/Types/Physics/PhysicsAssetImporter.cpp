@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/Physics/PhysicsAssetImporter.h"
 #include "Engine/EngineUtilities.h"
 
@@ -12,7 +11,6 @@ UObject* IPhysicsAssetImporter::CreateAsset(UObject* CreatedAsset) {
 }
 
 bool IPhysicsAssetImporter::Import() {
-	/* CollisionDisableTable is required to port physics assets */
 	if (!GetAssetData()->HasField(TEXT("CollisionDisableTable"))) {
 		SpawnPrompt("Missing CollisionDisableTable", "The provided physics asset json file is missing the 'CollisionDisableTable' property. This property is required.");
 
@@ -24,7 +22,6 @@ bool IPhysicsAssetImporter::Import() {
 	DeserializeExports(PhysicsAsset, false);
 	FUObjectExportContainer* ExportContainer = GetContainer();
 
-	/* SkeletalBodySetups ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	const FString SkeletalBodySetupsName = !GReflectionRuntime.IsOlderUE4Target() ? "SkeletalBodySetups" : "BodySetup";
 
 	ProcessJsonArrayField(GetAssetData(), SkeletalBodySetupsName, [&](const TSharedPtr<FJsonObject>& ObjectField) {
@@ -33,17 +30,15 @@ bool IPhysicsAssetImporter::Import() {
 
 		const TSharedPtr<FJsonObject> ExportProperties = ExportJson->GetObjectField(TEXT("Properties"));
 		const FName BoneName = FName(*ExportProperties->GetStringField(TEXT("BoneName")));
-		
+
 		USkeletalBodySetup* BodySetup = CreateNewBody(PhysicsAsset, ExportName, BoneName);
 
 		GetObjectSerializer()->DeserializeObjectProperties(ExportProperties, BodySetup);
 	});
 
-	/* For caching. IMPORTANT! DO NOT REMOVE! */
 	PhysicsAsset->UpdateBodySetupIndexMap();
 	PhysicsAsset->UpdateBoundsBodiesArray();
 
-	/* CollisionDisableTable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	TArray<TSharedPtr<FJsonValue>> CollisionDisableTable = GetAssetData()->GetArrayField(TEXT("CollisionDisableTable"));
 
 	for (const auto& TableJSONElement : CollisionDisableTable) {
@@ -55,25 +50,21 @@ bool IPhysicsAssetImporter::Import() {
 		const int32 BodyIndexA = Indices[0]->AsNumber();
 		const int32 BodyIndexB = Indices[1]->AsNumber();
 
-		/* Add to the CollisionDisableTable */
 		PhysicsAsset->CollisionDisableTable.Add(FRigidBodyIndexPair(BodyIndexA, BodyIndexB), MapValue);
 	}
 
-	/* ConstraintSetup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	ProcessJsonArrayField(GetAssetData(), TEXT("ConstraintSetup"), [&](const TSharedPtr<FJsonObject>& ObjectField) {
 		const FName ExportName = GetExportNameOfSubobject(ObjectField->GetStringField(TEXT("ObjectName")));
 		const TSharedPtr<FJsonObject> ExportJson = ExportContainer->Find(ExportName)->JsonObject;
 
 		const TSharedPtr<FJsonObject> ExportProperties = ExportJson->GetObjectField(TEXT("Properties"));
 		UPhysicsConstraintTemplate* PhysicsConstraintTemplate = CreateNewConstraint(PhysicsAsset, ExportName);
-		
+
 		GetObjectSerializer()->DeserializeObjectProperties(ExportProperties, PhysicsConstraintTemplate);
 
-		/* For caching. IMPORTANT! DO NOT REMOVE! */
 		PhysicsConstraintTemplate->UpdateProfileInstance();
 	});
 
-	/* Simple data at end ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	GetObjectSerializer()->DeserializeObjectProperties(RemovePropertiesShared(GetAssetData(),
 	{
 		"SkeletalBodySetups",
@@ -83,10 +74,8 @@ bool IPhysicsAssetImporter::Import() {
 		"CollisionDisableTable"
 	}), PhysicsAsset);
 
-	/* If the user selected a skeletal mesh in the browser, set it in the physics asset */
 	USkeletalMesh* SkeletalMesh = GetSelectedAsset<USkeletalMesh>(true);
 
-	/* Otherwise, fallback to any skeletal mesh sitting in the same folder as the physics asset */
 	if (!SkeletalMesh) {
 		const FString SearchPath = FPackageName::GetLongPackagePath(GetPackage()->GetName());
 
@@ -110,17 +99,16 @@ bool IPhysicsAssetImporter::Import() {
 			}
 		}
 	}
-	
+
 	if (SkeletalMesh) {
 		PhysicsAsset->PreviewSkeletalMesh = SkeletalMesh;
 		PhysicsAsset->PostEditChange();
 	}
 
-	/* Finalize ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	PhysicsAsset->Modify();
 	PhysicsAsset->MarkPackageDirty();
 	PhysicsAsset->UpdateBoundsBodiesArray();
-	
+
 	return OnAssetCreation(PhysicsAsset);
 }
 

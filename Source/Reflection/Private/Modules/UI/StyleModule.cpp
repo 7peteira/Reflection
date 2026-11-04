@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/UI/StyleModule.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Interfaces/IPluginManager.h"
@@ -7,8 +6,6 @@
 #include "Engine/EngineUtilities.h"
 #include "Engine/Compatibility.h"
 
-/* 4.25 and below build this module without the engine's shared PCH (see Reflection.Build.cs),
- * which is where the slate application used to come in from */
 #if UE4_25_BELOW
 #include "Framework/Application/SlateApplication.h"
 #endif
@@ -20,6 +17,23 @@
 #endif
 
 #define IMAGE_BRUSH(RelativePath, ...) FSlateImageBrush(Style->RootToContentDir(RelativePath, TEXT(".png")), __VA_ARGS__)
+
+#if ENGINE_UE5
+static constexpr float ActionButtonSidePadding = 28.0f;
+
+static FMargin WithSidePadding(const FMargin& Padding, const float Sides) {
+	return FMargin(Sides, Padding.Top, Sides, Padding.Bottom);
+}
+
+static FButtonStyle WithWiderSides(const FButtonStyle& Button, const float Sides) {
+	FButtonStyle Widened = Button;
+
+	Widened.SetNormalPadding(WithSidePadding(Button.NormalPadding, Sides));
+	Widened.SetPressedPadding(WithSidePadding(Button.PressedPadding, Sides));
+
+	return Widened;
+}
+#endif
 
 const FVector2D Icon40x40(40, 40);
 
@@ -59,6 +73,11 @@ FName FReflectionStyle::GetEmbeddedToolbarStyleName() {
 	return EmbeddedToolbarStyleName;
 }
 
+FName FReflectionStyle::GetActionButtonStyleName() {
+	static FName ActionButtonStyleName(TEXT("Reflection.CalloutToolbar"));
+	return ActionButtonStyleName;
+}
+
 #if ENGINE_UE5
 void FReflectionStyle::EnsureEmbeddedToolbarStyleRegistered() {
 	static bool bRegistered = false;
@@ -75,19 +94,22 @@ void FReflectionStyle::EnsureEmbeddedToolbarStyleRegistered() {
 	EmbeddedToolbarStyle.SetBackgroundPadding(FMargin(6.f, 3.f, 6.f, 3.f));
 
 	StyleInstance->Set(GetEmbeddedToolbarStyleName(), EmbeddedToolbarStyle);
-	StyleInstance->Set(TEXT("CalloutToolbar"), FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("CalloutToolbar"));
+
+	const FToolBarStyle CalloutToolbarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("CalloutToolbar");
+
+	StyleInstance->Set(TEXT("CalloutToolbar"), CalloutToolbarStyle);
+
+	FToolBarStyle ActionButtonStyle = CalloutToolbarStyle;
+
+	ActionButtonStyle.SetButtonStyle(WithWiderSides(ActionButtonStyle.ButtonStyle, ActionButtonSidePadding));
+	ActionButtonStyle.SetSettingsButtonStyle(WithWiderSides(ActionButtonStyle.SettingsButtonStyle, ActionButtonSidePadding));
+
+	StyleInstance->Set(GetActionButtonStyleName(), ActionButtonStyle);
 
 #if !UE5_4_BEYOND
-	/* Before 5.4 a UToolMenu keeps its style set to itself: the member is private, only UToolMenus
-	 * is a friend, and there is no setter. Whatever the menu is handed, it looks its style name up
-	 * in FCoreStyle::Get(), which in an editor build is the app style. So the style goes in there
-	 * as well, under the same name, and the menu finds it without ever being told where to look.
-	 * Its copy above stays put so Get() keeps answering for it either way.
-	 *
-	 * The cast holds because the app style is always an FSlateStyleSet in the editor: the editor's
-	 * own FStarshipEditorStyle::FStyle derives from it, and this module only builds for the editor. */
 	if (FSlateStyleSet* AppStyleSet = static_cast<FSlateStyleSet*>(const_cast<ISlateStyle*>(FSlateStyleRegistry::FindSlateStyle(FAppStyle::GetAppStyleSetName())))) {
 		AppStyleSet->Set(GetEmbeddedToolbarStyleName(), EmbeddedToolbarStyle);
+		AppStyleSet->Set(GetActionButtonStyleName(), ActionButtonStyle);
 	}
 #endif
 }

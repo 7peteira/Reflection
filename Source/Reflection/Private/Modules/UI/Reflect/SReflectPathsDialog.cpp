@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/UI/Reflect/SReflectPathsDialog.h"
 
 #include "Engine/Compatibility.h"
@@ -12,6 +11,8 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/Input/SButton.h"
+#include "Settings/SettingsAccess.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
@@ -20,46 +21,33 @@
 
 #define LOCTEXT_NAMESPACE "Reflection.ReflectPaths"
 
-/* Whether one line could be an asset path.
- *
- * Deliberately shallow: only Cloud can say whether a path leads anywhere, and this runs against
- * whatever happened to be copied last. It is here to tell a path from a sentence, not to validate. */
+#if ENGINE_UE5
+static const FName RemoveButtonStyleName("SimpleButton");
+static const FName RemoveIconName("Icons.X");
+#else
+static const FName RemoveButtonStyleName("HoverHintOnly");
+static const FName RemoveIconName("Symbols.X");
+#endif
+
+static FSlateColor GetRemoveIconColor() {
+#if ENGINE_UE5
+	return FSlateColor::UseForeground();
+#else
+	return FAppStyle::Get().GetSlateColor("DefaultForeground");
+#endif
+}
+
 static bool IsPath(const FString& Line) {
-	/* A copied reference arrives as Type'/Game/Path/Asset.Asset' */
+	return IsAssetPathLike(Line);
+}
+
+static bool IsFolderPath(const FString& Line) {
 	FString Path = StripObjectOuter(Line.TrimStartAndEnd());
 	Path.ReplaceInline(TEXT("\\"), TEXT("/"));
 
-	if (Path.IsEmpty()) {
-		return false;
-	}
-
-	/* Every form of these has a root and something under it */
-	int32 Slash;
-	if (!Path.FindChar(TEXT('/'), Slash) || Path.Len() < 3) {
-		return false;
-	}
-
-	/* Prose is what this is mostly guarding against, and prose has spaces in it. Package paths
-	 * are allowed them in principle, but nothing that ships in a game uses them. */
-	for (const TCHAR Character : Path) {
-		if (FChar::IsWhitespace(Character)) {
-			return false;
-		}
-
-		/* Illegal in a package path either way */
-		if (FCString::Strchr(TEXT("?*:\"<>|"), Character) != nullptr) {
-			return false;
-		}
-	}
-
-	return true;
+	return Path.EndsWith(TEXT("/"));
 }
 
-/* Whether the whole of Text is paths, one per line.
- *
- * All of it or none: a clipboard holding a path and a line of something else is not a list that
- * was copied to be reflected, and queueing the half that parses would be putting words in the
- * user's mouth. */
 static bool IsPathList(const FString& Text) {
 	TArray<FString> Lines;
 	Text.ParseIntoArrayLines(Lines);
@@ -79,7 +67,7 @@ static bool IsPathList(const FString& Text) {
 	return Paths > 0;
 }
 
-bool SReflectPathsDialog::Open(TArray<FString>& OutPaths) {
+EReflectPathsChoice SReflectPathsDialog::Open(TArray<FString>& OutPaths, FString& OutFolder) {
 	const TSharedRef<SWindow> Window = SNew(SWindow)
 		.Title(LOCTEXT("Title", "Reflection"))
 		.ClientSize(FVector2D(720.0f, 480.0f))
@@ -96,8 +84,14 @@ bool SReflectPathsDialog::Open(TArray<FString>& OutPaths) {
 	const IMainFrameModule& MainFrameModule = IMainFrameModule::Get();
 	FSlateApplication::Get().AddModalWindow(Window, MainFrameModule.GetParentWindow());
 
+	if (Dialog->FolderRequested) {
+		OutFolder = Dialog->PathBox->GetText().ToString().TrimStartAndEnd();
+
+		return EReflectPathsChoice::Folder;
+	}
+
 	if (!Dialog->Accepted) {
-		return false;
+		return EReflectPathsChoice::Cancelled;
 	}
 
 	OutPaths.Reset();
@@ -108,7 +102,7 @@ bool SReflectPathsDialog::Open(TArray<FString>& OutPaths) {
 		}
 	}
 
-	return OutPaths.Num() > 0;
+	return OutPaths.Num() > 0 ? EReflectPathsChoice::Reflect : EReflectPathsChoice::Cancelled;
 }
 
 void SReflectPathsDialog::Construct(const FArguments& InArgs) {
@@ -118,7 +112,6 @@ void SReflectPathsDialog::Construct(const FArguments& InArgs) {
 	[
 		SNew(SVerticalBox)
 
-		/* Entry ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		[
@@ -152,7 +145,6 @@ void SReflectPathsDialog::Construct(const FArguments& InArgs) {
 			]
 		]
 
-		/* Queue ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(FMargin(8.0f, 6.0f, 8.0f, 0.0f))
@@ -176,33 +168,69 @@ void SReflectPathsDialog::Construct(const FArguments& InArgs) {
 			]
 		]
 
-		/* Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 		+ SVerticalBox::Slot()
 		.AutoHeight()
-		.HAlign(HAlign_Right)
 		.Padding(FMargin(8.0f, 0.0f, 8.0f, 8.0f))
 		[
-			SNew(SButton)
-			.Text(this, &SReflectPathsDialog::GetReflectText)
-			.IsEnabled(this, &SReflectPathsDialog::CanReflect)
-			.OnClicked(this, &SReflectPathsDialog::OnReflectClicked)
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("Folder", "Folder"))
+				.ToolTipText(LOCTEXT("FolderTooltip", "Reflect a folder of the game files instead. This closes, and the folder window takes over."))
+				.OnClicked(this, &SReflectPathsDialog::OnFolderClicked)
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(12.0f, 0.0f, 0.0f, 0.0f))
+			[
+				SNew(SCheckBox)
+				.ToolTipText(LOCTEXT("ReferencesTooltip", "Fetch what an asset names as well as the asset. Off, only the paths queued here are built, and everything they refer to is left to whatever the project already has."))
+				.IsChecked_Lambda([] {
+					return GetSettings()->AssetSettings.ImportReferences ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+				})
+				.OnCheckStateChanged_Lambda([](const ECheckBoxState NewState) {
+					GetSettings()->AssetSettings.ImportReferences = NewState == ECheckBoxState::Checked;
+					GetSettings()->SaveConfig();
+				})
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("References", "References"))
+					.Margin(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.0f)
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(6.0f, 0.0f, 0.0f, 0.0f))
+			[
+				SNew(SButton)
+				.Text(this, &SReflectPathsDialog::GetReflectText)
+				.IsEnabled(this, &SReflectPathsDialog::CanReflect)
+				.OnClicked(this, &SReflectPathsDialog::OnReflectClicked)
+			]
 		]
 	];
 
-	/* The path is usually already on the clipboard, straight out of the asset it was copied from.
-	 * Whatever else was copied since is not, so nothing goes in unless all of it is paths. */
 	const FString Clipboard = GetClipboard();
 
-	if (IsPathList(Clipboard)) {
+	if (IsAssetPathLike(Clipboard) && IsFolderPath(Clipboard)) {
+		PathBox->SetText(FText::FromString(Clipboard.TrimStartAndEnd()));
+	} else if (IsPathList(Clipboard)) {
 		AddPaths(Clipboard);
 	}
 
 	FSlateApplication::Get().SetKeyboardFocus(PathBox);
 }
 
-/* Actions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 void SReflectPathsDialog::OnPathCommitted(const FText& NewText, const ETextCommit::Type CommitType) {
-	/* Enter queues what was typed, so paths can be pasted one after another without the mouse */
 	if (CommitType == ETextCommit::OnEnter) {
 		AddFromBox();
 	}
@@ -210,6 +238,16 @@ void SReflectPathsDialog::OnPathCommitted(const FText& NewText, const ETextCommi
 
 FReply SReflectPathsDialog::OnAddClicked() {
 	AddFromBox();
+
+	return FReply::Handled();
+}
+
+FReply SReflectPathsDialog::OnFolderClicked() {
+	FolderRequested = true;
+
+	if (ParentWindow.IsValid()) {
+		ParentWindow->RequestDestroyWindow();
+	}
 
 	return FReply::Handled();
 }
@@ -240,7 +278,6 @@ void SReflectPathsDialog::AddPaths(const FString& Text) {
 		const FString Path = Line.TrimStartAndEnd();
 		if (Path.IsEmpty()) continue;
 
-		/* Reflecting the same path twice is just a wasted request */
 		const bool Queued = Rows.ContainsByPredicate([&Path](const TSharedPtr<FString>& Row) {
 			return Row.IsValid() && Row->Equals(Path, ESearchCase::IgnoreCase);
 		});
@@ -265,7 +302,6 @@ FReply SReflectPathsDialog::RemovePath(TSharedPtr<FString> Path) {
 	return FReply::Handled();
 }
 
-/* State ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 bool SReflectPathsDialog::CanAdd() const {
 	return PathBox.IsValid() && !PathBox->GetText().ToString().TrimStartAndEnd().IsEmpty();
 }
@@ -304,21 +340,20 @@ TSharedRef<ITableRow> SReflectPathsDialog::GenerateRow(TSharedPtr<FString> Path,
 				.Text(FText::FromString(Path.IsValid() ? *Path : FString()))
 			]
 
-			/* The only way back out of the queue, so it sits on the entry it removes */
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)
 			.Padding(FMargin(4.0f, 2.0f, 4.0f, 2.0f))
 			[
 				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ButtonStyle(FAppStyle::Get(), RemoveButtonStyleName)
 				.ContentPadding(FMargin(2.0f))
 				.ToolTipText(LOCTEXT("RemoveTooltip", "Take this path back out of the queue"))
 				.OnClicked(this, &SReflectPathsDialog::RemovePath, Path)
 				[
 					SNew(SImage)
-					.Image(FAppStyle::Get().GetBrush("Icons.X"))
-					.ColorAndOpacity(FSlateColor::UseForeground())
+					.Image(FAppStyle::Get().GetBrush(RemoveIconName))
+					.ColorAndOpacity(GetRemoveIconColor())
 				]
 			]
 		];

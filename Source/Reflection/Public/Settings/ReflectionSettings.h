@@ -1,13 +1,11 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 
-/* Settings Substructures */
 #include "Types/AnimationBlueprintSettings.h"
-#include "Types/MaterialSettings.h"
+#include "Types/LevelSettings.h"
+#include "Types/MeshSettings.h"
 #include "Types/TextureSettings.h"
 #include "Redirector.h"
 
@@ -16,16 +14,22 @@
 extern FName GReflectionSettingsCategoryName;
 extern FName GReflectionInternalName;
 
+UENUM()
+enum class ERPackagedAssets : uint8 {
+	Together UMETA(DisplayName = "Kept Together"),
+
+	Separate UMETA(DisplayName = "Split Apart")
+};
+
 USTRUCT()
 struct FRSettings
 {
 	GENERATED_BODY()
 public:
-	/* Constructor to initialize default values */
 	FRSettings() {
-		Material = FRMaterialSettings();
-		Texture = FRTextureSettings();
 		AnimationBlueprint = FRAnimationBlueprintSettings();
+		Texture = FRTextureSettings();
+		Mesh = FRMeshSettings();
 	}
 
 	UPROPERTY(EditAnywhere, Config, Category = Settings)
@@ -33,15 +37,23 @@ public:
 
 	UPROPERTY(EditAnywhere, Config, Category = Settings)
 	FRTextureSettings Texture;
-	
+
 	UPROPERTY(EditAnywhere, Config, Category = Settings)
-	FRMaterialSettings Material;
+	FRMeshSettings Mesh;
+
+	UPROPERTY(EditAnywhere, DisplayName = "Packaged Assets", Config, Category = Settings)
+	ERPackagedAssets PackagedAssets = ERPackagedAssets::Together;
 
 	UPROPERTY(EditAnywhere, Config, Category = Settings)
 	bool SaveAssets = false;
+
+	UPROPERTY(EditAnywhere, DisplayName = "Import References", Config, Category = Settings)
+	bool ImportReferences = true;
+
+	UPROPERTY(EditAnywhere, DisplayName = "Import Blueprint Code", Config, Category = Settings)
+	bool ImportBlueprintCode = true;
 };
 
-/* Reconstruction Toolkit for Unreal Engine */
 UCLASS(Config = EditorPerProjectUserSettings, DefaultConfig)
 class REFLECTION_API UReflectionSettings : public UDeveloperSettings {
 	GENERATED_BODY()
@@ -50,6 +62,10 @@ public:
 
 	virtual FText GetSectionText() const override;
 
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+
 public:
 	UPROPERTY(EditAnywhere, Config, Category = Redirectors, meta = (TitleProperty = "Name"))
 	TArray<FRRedirector> Redirectors;
@@ -57,7 +73,15 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = Settings)
 	FRSettings AssetSettings;
 
-	/* Enables experimental/developing features. Features may not work as intended. */
+	UPROPERTY(EditAnywhere, DisplayName = "Level", Config, Category = Settings, meta = (EditCondition = "EnableExperiments"))
+	FRLevelSettings Level;
+
+	UPROPERTY(EditAnywhere, DisplayName = "Use Local Json instead of Cloud", Category = Settings, Config)
+	bool UseLocalJson = false;
+
 	UPROPERTY(EditAnywhere, Config, DisplayName = "Experiments", Category = Settings, AdvancedDisplay)
 	bool EnableExperiments = false;
+
+	UPROPERTY(EditAnywhere, Config, DisplayName = "Support Prompt", Category = Settings, AdvancedDisplay)
+	bool ShowSupportPrompt = true;
 };

@@ -1,7 +1,7 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
+#include "Importers/Types/Blueprint/AnimationBlueprintImporter.h"
+#include "Importers/Types/Blueprint/BlueprintImporter.h"
 #include "AnimationBlueprintUtilities.h"
 #include "AnimationStateGraph.h"
 #include "AnimationStateMachineGraph.h"
@@ -24,54 +24,54 @@ inline void AutoLayoutStateMachineGraph(UAnimationStateMachineGraph* StateMachin
     UAnimStateNodeBase* InitialState = nullptr; {
         if (StateMachineGraph->EntryNode) {
             const UEdGraphPin* EntryPin = StateMachineGraph->EntryNode->FindPin(TEXT("Entry"));
-        	
+
             if (EntryPin && EntryPin->LinkedTo.Num() > 0) { 
                 InitialState = Cast<UAnimStateNodeBase>(EntryPin->LinkedTo[0]->GetOwningNode()); 
             }
         }
     }
-    
+
     if (!InitialState) {
         return;
     }
-    
+
     TMap<UAnimStateNodeBase*, int32> StateLevels;
     TQueue<UAnimStateNodeBase*> NodesToProcess;
-    
+
     StateLevels.Add(InitialState, 0);
     NodesToProcess.Enqueue(InitialState);
-    
+
     TMap<UAnimStateNodeBase*, TArray<UAnimStateNodeBase*>> OutgoingTransitions;
-	
+
     for (UEdGraphNode* Node : StateMachineGraph->Nodes) {
         const UAnimStateTransitionNode* TransitionNode = Cast<UAnimStateTransitionNode>(Node);
         if (!TransitionNode) { 
             continue; 
         }
-        
+
         const UEdGraphPin* InPin = TransitionNode->GetInputPin();
         const UEdGraphPin* OutPin = TransitionNode->GetOutputPin();
-    	
+
         if (InPin && OutPin && InPin->LinkedTo.Num() > 0 && OutPin->LinkedTo.Num() > 0) {
             UAnimStateNodeBase* FromState = Cast<UAnimStateNodeBase>(InPin->LinkedTo[0]->GetOwningNode());
             UAnimStateNodeBase* ToState = Cast<UAnimStateNodeBase>(OutPin->LinkedTo[0]->GetOwningNode());
-        	
+
             if (FromState && ToState) { 
                 OutgoingTransitions.FindOrAdd(FromState).AddUnique(ToState); 
             }
         }
     }
-    
+
     while (!NodesToProcess.IsEmpty()) {
         UAnimStateNodeBase* Current;
         NodesToProcess.Dequeue(Current);
-    	
+
         const int32 CurrentLevel = StateLevels.FindChecked(Current);
-    	
+
         if (OutgoingTransitions.Contains(Current)) {
             for (UAnimStateNodeBase* NextState : OutgoingTransitions[Current]) {
                 const int32 NextLevel = CurrentLevel + 1;
-            	
+
                 if (!StateLevels.Contains(NextState) || NextLevel < StateLevels[NextState]) {
                     StateLevels.Add(NextState, NextLevel);
                     NodesToProcess.Enqueue(NextState);
@@ -79,56 +79,61 @@ inline void AutoLayoutStateMachineGraph(UAnimationStateMachineGraph* StateMachin
             }
         }
     }
-    
+
     TMap<int32, TArray<UAnimStateNodeBase*>> StatesByLevel;
     for (auto& Pair : StateLevels) {
         UAnimStateNodeBase* State = Pair.Key;
         int32 Level = Pair.Value;
-    	
+
         StatesByLevel.FindOrAdd(Level).Add(State);
     }
 
     constexpr float HorizontalSpacing = 400.0f;
     constexpr float VerticalSpacing = 200.0f;
-	
+
     for (auto& LevelGroup : StatesByLevel) {
         int32 Level = LevelGroup.Key;
         TArray<UAnimStateNodeBase*>& NodesInLevel = LevelGroup.Value;
-    	
+
         NodesInLevel.Sort([](const UAnimStateNodeBase& A, const UAnimStateNodeBase& B) {
             return A.GetName() < B.GetName();
         });
-    	
+
         const float X = Level * HorizontalSpacing;
         float StartY = -((NodesInLevel.Num() - 1) * VerticalSpacing) * 0.5f;
-    	
+
         for (int32 i = 0; i < NodesInLevel.Num(); ++i) {
             UAnimStateNodeBase* Node = NodesInLevel[i];
             Node->NodePosX = X;
             Node->NodePosY = StartY + i * VerticalSpacing;
         }
     }
-    
+
     for (UEdGraphNode* Node : StateMachineGraph->Nodes) {
         UAnimStateTransitionNode* TransitionNode = Cast<UAnimStateTransitionNode>(Node);
         if (!TransitionNode) { 
             continue; 
         }
-        
+
         const UEdGraphPin* InputPin = TransitionNode->GetInputPin();
         const UEdGraphPin* OutputPin = TransitionNode->GetOutputPin();
-    	
+
         if (InputPin && OutputPin && InputPin->LinkedTo.Num() > 0 && OutputPin->LinkedTo.Num() > 0) {
             UAnimStateNodeBase* FromState = Cast<UAnimStateNodeBase>(InputPin->LinkedTo[0]->GetOwningNode());
             UAnimStateNodeBase* ToState = Cast<UAnimStateNodeBase>(OutputPin->LinkedTo[0]->GetOwningNode());
-        	
+
             if (FromState && ToState) {
                 TransitionNode->NodePosX = (FromState->NodePosX + ToState->NodePosX) * 0.5f;
                 TransitionNode->NodePosY = (FromState->NodePosY + ToState->NodePosY) * 0.5f;
             }
         }
     }
-    
+
+    if (StateMachineGraph->EntryNode) {
+        StateMachineGraph->EntryNode->NodePosX = InitialState->NodePosX;
+        StateMachineGraph->EntryNode->NodePosY = InitialState->NodePosY - 120;
+    }
+
     StateMachineGraph->NotifyGraphChanged();
 }
 
@@ -138,7 +143,7 @@ inline void CreateStateMachineGraph(
 	UObjectSerializer* ObjectSerializer,
 	FUObjectExportContainer* RootContainer,
 	TArray<FString> ReversedNodesKeys,
-	IImporter* Importer,
+	IAnimationBlueprintImporter* Importer,
 	UAnimBlueprint* AnimBlueprint
 ) {
 	if (!StateMachineGraph || !StateMachineJsonObject.IsValid()) {
@@ -148,17 +153,14 @@ inline void CreateStateMachineGraph(
 	const UAnimationStateMachineSchema* Schema = Cast<UAnimationStateMachineSchema>(StateMachineGraph->GetSchema());
 	StateMachineGraph->Modify();
 
-	/* Creating States ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	const TArray<TSharedPtr<FJsonValue>>& States = StateMachineJsonObject->GetArrayField(TEXT("States"));
-	
-	/* Store state nodes in a container */
+
 	FUObjectExportContainer Container;
-    
-	/* Create each state */
+
 	for (int32 i = 0; i < States.Num(); ++i) {
 		const TSharedPtr<FJsonObject> StateObject = States[i]->AsObject();
 		const FString StateName = StateObject->GetStringField(TEXT("StateName"));
-		
+
 		const bool bAlwaysResetOnEntry = StateObject->GetBoolField(TEXT("bAlwaysResetOnEntry"));
 
 		const bool bIsAConduit = StateObject->GetBoolField(TEXT("bIsAConduit"));
@@ -174,7 +176,7 @@ inline void CreateStateMachineGraph(
 			);
 
 			BoundGraph = ConduitNode->BoundGraph;
-					        
+
 			if (!BoundGraph) {
 				BoundGraph = NewObject<UAnimationTransitionGraph>(ConduitNode, UAnimationTransitionGraph::StaticClass(), *StateName, RF_Transactional);
 				ConduitNode->BoundGraph = BoundGraph;
@@ -182,23 +184,39 @@ inline void CreateStateMachineGraph(
 
 			Node = ConduitNode;
 
-			if (EntryRuleNodeIndex != -1) {
+			if (EntryRuleNodeIndex != -1 && ReversedNodesKeys.IsValidIndex(EntryRuleNodeIndex)) {
 				FString DelegateExportName = ReversedNodesKeys[EntryRuleNodeIndex];
 
 				UAnimationTransitionGraph* TransGraph = CastChecked<UAnimationTransitionGraph>(BoundGraph);
-				UAnimGraphNode_TransitionResult* ResultNode = TransGraph->GetResultNode();
-				
-				ResultNode->NodeComment = DelegateExportName;
-				ResultNode->bCommentBubbleVisible = true;
+
+				if (UAnimGraphNode_TransitionResult* ResultNode = TransGraph->GetResultNode()) {
+					UEdGraphPin* Decides = ResultNode->FindPin(TEXT("bCanEnterTransition"), EGPD_Input);
+
+					if (const FUObjectExport* Rule = RootContainer->Find(DelegateExportName); Rule != nullptr && Rule->IsJsonValid()) {
+						if (bool bEnters; Rule->JsonObject->TryGetBoolField(TEXT("bCanEnterTransition"), bEnters)) {
+							ResultNode->Node.bCanEnterTransition = bEnters;
+
+							if (Decides != nullptr) {
+								Decides->DefaultValue = bEnters ? TEXT("true") : TEXT("false");
+							}
+						}
+					}
+
+					if (Decides != nullptr) {
+						Importer->Answers(DelegateExportName, TEXT("bCanEnterTransition"), Decides);
+					}
+
+					Importer->ApplyBindings(DelegateExportName, ResultNode);
+				}
 			}
 		} else {
 			UAnimStateNode* StateNode = FEdGraphSchemaAction_NewStateNode::SpawnNodeFromTemplate<UAnimStateNode>(
 				StateMachineGraph,
 				NewObject<UAnimStateNode>(StateMachineGraph, UAnimStateNode::StaticClass(), *StateName, RF_Transactional)
 			);
-			
+
 			BoundGraph = StateNode->BoundGraph;
-		    
+
 			if (!BoundGraph) {
 				BoundGraph = NewObject<UAnimationStateGraph>(StateNode, UAnimationStateGraph::StaticClass(), *StateName, RF_Transactional);
 				StateNode->BoundGraph = BoundGraph;
@@ -223,13 +241,11 @@ inline void CreateStateMachineGraph(
 		);
 	}
 
-	/* Creating Transitions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	const TArray<TSharedPtr<FJsonValue>>& Transitions = StateMachineJsonObject->GetArrayField(TEXT("Transitions"));
-	
+
 	for (int32 TransitionIndex = 0; TransitionIndex < Transitions.Num(); ++TransitionIndex) {
 	    const TSharedPtr<FJsonObject>& TransitionObject = Transitions[TransitionIndex]->AsObject();
 
-		/* Get State Nodes from Container */
 	    const int32 PreviousStateIndex = TransitionObject->GetIntegerField(TEXT("PreviousState"));
 	    const int32 NextStateIndex = TransitionObject->GetIntegerField(TEXT("NextState"));
 
@@ -238,25 +254,21 @@ inline void CreateStateMachineGraph(
 		if (!PreviousStateExport->Object || !NextStateExport->Object) continue;
 
 		TSharedPtr<FJsonObject> PreviousStateObject = PreviousStateExport->JsonObject;
-		
+
 		UAnimStateNodeBase* const FromNode = Cast<UAnimStateNodeBase>(PreviousStateExport->Object);
 		UAnimStateNodeBase* const ToNode = Cast<UAnimStateNodeBase>(NextStateExport->Object);
 
-		/* State Nodes must exist */
 		if (!FromNode || !ToNode) continue;
 
         UAnimStateTransitionNode* const TransitionNode = NewObject<UAnimStateTransitionNode>(StateMachineGraph);
         TransitionNode->SetFlags(RF_Transactional);
         TransitionNode->CreateNewGuid();
-		
-		/* Automatically creates the Transition Graph */
+
         TransitionNode->PostPlacedNewNode();
 
-		/* Create default pins and add to state machine */
         TransitionNode->AllocateDefaultPins();
         StateMachineGraph->Nodes.Add(TransitionNode);
 
-		/* Find the Transition Graph from the transition node */
         UAnimationTransitionGraph* AnimationTransitionGraph = Cast<UAnimationTransitionGraph>(TransitionNode->BoundGraph);
         if (!AnimationTransitionGraph || !AnimationTransitionGraph->MyResultNode) {
             continue;
@@ -267,7 +279,6 @@ inline void CreateStateMachineGraph(
 
         ResultStruct.bCanEnterTransition = TransitionObject->GetBoolField(TEXT("bDesiredTransitionReturnValue"));
 
-		/* Set TransitionNode data */
 		TSharedPtr<FJsonObject> TransitionStateObject;
 
 		if (PreviousStateObject->HasField(TEXT("Transitions"))) {
@@ -275,10 +286,10 @@ inline void CreateStateMachineGraph(
 
 			for (const TSharedPtr<FJsonValue>& StateTransValue : StateTransitions) {
 				const TSharedPtr<FJsonObject> StateTransitionObject = StateTransValue->AsObject();
-				
+
 				if (StateTransitionObject.IsValid()) {
 					const int32 StateTransitionIndex = StateTransitionObject->GetIntegerField(TEXT("TransitionIndex"));
-                	
+
 					if (TransitionIndex == StateTransitionIndex) {
 						TransitionStateObject = StateTransitionObject;
 						break;
@@ -290,25 +301,24 @@ inline void CreateStateMachineGraph(
 		TransitionNode->bAutomaticRuleBasedOnSequencePlayerInState = TransitionStateObject->GetBoolField(TEXT("bAutomaticRemainingTimeRule"));
 		ObjectSerializer->DeserializeObjectProperties(TransitionObject, TransitionNode);
 
-		/* CanTakeDelegateIndex is the index in nodes where the transition result node is */
 		const int CanTakeDelegateIndex = TransitionStateObject->GetIntegerField(TEXT("CanTakeDelegateIndex"));
-		
+
 		if (CanTakeDelegateIndex != -1 &&
-			/* Hide if it's already automatically transitioning */
 			!TransitionNode->bAutomaticRuleBasedOnSequencePlayerInState
 		) {
 			FString DelegateExportName = ReversedNodesKeys[CanTakeDelegateIndex];
-			
-			/* Use if needed */
+
 			FUObjectExport* DelegateExport = RootContainer->Find(DelegateExportName);
 
 			HandlePropertyBinding(DelegateExport, Importer->GetContainer()->JsonObjects, TransitionResult, Importer, AnimBlueprint);
 
-			TransitionResult->NodeComment = DelegateExportName;
-			TransitionResult->bCommentBubbleVisible = true;
+			if (UEdGraphPin* Decides = TransitionResult->FindPin(TEXT("bCanEnterTransition"), EGPD_Input)) {
+				Importer->Answers(DelegateExportName, TEXT("bCanEnterTransition"), Decides);
+			}
+
+			Importer->ApplyBindings(DelegateExportName, TransitionResult);
 		}
-		
-		/* Connect State Nodes together using the Transition Node */
+
         if (UEdGraphPin* const FromOutput = FindOutputPin(FromNode)) {
             if (UEdGraphPin* const TransitionIn = TransitionNode->GetInputPin()) {
                 FromOutput->MakeLinkTo(TransitionIn);
@@ -321,28 +331,22 @@ inline void CreateStateMachineGraph(
 	    }
 	}
 
-	/* Connecting Entry Node to Initial State ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	if (!StateMachineGraph->EntryNode) return;
 
-	/* What state is this state machine plugged into first */
 	const int InitialState = StateMachineJsonObject->GetIntegerField(TEXT("InitialState"));
 	if (!States.IsValidIndex(InitialState)) return;
 
 	const TSharedPtr<FJsonObject> InitialStateObject = States[InitialState]->AsObject();
 	const FString InitialStateName = InitialStateObject->GetStringField(TEXT("StateName"));
 
-	/* Find Initial State using the StateNodesMap */
 	UAnimStateNodeBase* InitialStateNode = Cast<UAnimStateNodeBase>(Container.Find(InitialStateName)->Object);
 	if (!InitialStateNode) return;
 
-	/* Find the EntryNode's Output Pin */
 	UEdGraphPin* EntryOutputPin = StateMachineGraph->EntryNode->FindPin(TEXT("Entry"));
 
-	/* Connect Entry Node to Initial State */
 	if (InitialStateNode) {
 		InitialStateNode->AllocateDefaultPins();
 
-		/* Find Input Pin of State Node */
 		UEdGraphPin* InitialInputPin = nullptr;
 		for (UEdGraphPin* Pin : InitialStateNode->Pins) {
 			if(Pin && Pin->Direction == EGPD_Input) {

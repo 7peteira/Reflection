@@ -1,13 +1,9 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Settings/ReflectionSettings.h"
-#include "Settings/SettingsAccess.h"
 #include "Settings/Runtime.h"
 
-/* Turns a package path as Cloud knows it into the one the same asset takes in the editor. */
 inline FString ToEditorPackagePath(const FString& InPath) {
 	FString Path = InPath;
 
@@ -26,6 +22,20 @@ inline FString ToEditorPackagePath(const FString& InPath) {
 	}
 
 	FRRedirects::Redirect(Path);
+
+	return Path;
+}
+
+inline FString ToCloudPackagePath(const FString& InPath) {
+	FString Path = InPath;
+
+	FRRedirects::Reverse(Path);
+
+	const FString& ProjectName = GReflectionRuntime.Profile.ProjectName;
+
+	if (!ProjectName.IsEmpty() && Path.StartsWith(TEXT("/Game/"))) {
+		Path = ProjectName + TEXT("/Content/") + Path.RightChop(6);
+	}
 
 	return Path;
 }

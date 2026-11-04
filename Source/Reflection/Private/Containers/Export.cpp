@@ -1,10 +1,9 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Containers/Export.h"
 #include "Engine/EngineUtilities.h"
-#include "Settings/ReflectionSettings.h"
 #include "Settings/Runtime.h"
 #include "Importers/Types/Blueprint/BlueprintUtilities.h"
+#include "Importers/Constructor/Importer.h"
 
 FString ReadPathFromObject(const FUObjectJsonValueExport& PackageIndex) {
 	FString ObjectType, ObjectName, ObjectPath, Outer;
@@ -35,7 +34,7 @@ FString ReadPathFromObject(const FUObjectJsonValueExport& PackageIndex) {
 
 UClass* FUObjectExport::GetClass() {
 	if (Class) return Class;
-	
+
 	FString ClassName = GetString("Class");
 
 	if (Has("Template")) {
@@ -52,8 +51,27 @@ UClass* FUObjectExport::GetClass() {
 		OutClass = FindClassByType(GetType().ToString());
 	}
 
-	if (Has("Next") || Has("SuperStruct")) {
-		OutClass = LoadClass(GetSuperStructJsonObject(GetProperties()));
+	if (!OutClass && ClassName.Contains(TEXT("/"))) {
+		FString Asset = ClassName;
+		Asset.Split(TEXT("."), &Asset, nullptr, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+
+		OutClass = LoadBlueprintClass(Asset);
+
+		if (!OutClass && !PackageHoldsAsset(Asset) && TToolImportFromPath::Import(Asset)) {
+			OutClass = LoadBlueprintClass(Asset);
+		}
+	}
+
+	TSharedPtr<FJsonObject> Comes = GetSuperStructJsonObject(GetProperties());
+
+	if (!Comes.IsValid()) {
+		Comes = GetSuperStructJsonObject(JsonObject);
+	}
+
+	if (Comes.IsValid()) {
+		if (UClass* ParentClass = LoadClass(Comes)) {
+			OutClass = ParentClass;
+		}
 	}
 
 	if (!OutClass) return nullptr;

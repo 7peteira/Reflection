@@ -1,28 +1,56 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "Importers/Constructor/Importer.h"
 
-class IBlueprintImporter final : public IImporter {
+class IBlueprintImporter : public IImporter {
 protected:
 	UBlueprint* Blueprint = nullptr;
-	
+
+	struct FDecided {
+		FString Owner;
+		FName Member;
+		UEdGraphPin* Pin = nullptr;
+	};
+
+	TArray<FDecided> Decides;
+
 public:
 	virtual UObject* CreateAsset(UObject* CreatedAsset = nullptr) override;
-	
+
 	virtual bool Import() override;
-	
+
+	void Answers(const FString& Owner, FName Member, UEdGraphPin* Pin);
+
 protected:
-	/* Recreates the variables the blueprint declares, returns how many were added.
-	 * Not const, reading the export off the container isn't. */
 	int32 ConstructVariables();
 
-	/* Handles SimpleConstructionScript, the component layout for Actor blueprints */
 	void ConstructScript() const;
 
-	/* Handles WidgetTree, the UI layout for Widget blueprints */
+	int32 ConstructOverriddenComponents();
+
 	void ConstructWidgetTree();
+
+	int32 ConstructGraphs();
+
+	int32 ConstructInterfaces();
+
+	int32 ConstructBody();
+
+	int32 ConstructTimelines();
+
+	int32 ConstructAnimationEvents();
+
+	int32 ConstructComponentEvents();
+
+	int32 MatchEventLayout();
+
+	TMap<FName, int32> AssetEntries;
+
+	TSet<int32> AssetUbergraphStatements;
+
+	TMap<FString, TPair<TWeakObjectPtr<class UK2Node>, FName>> Handouts;
+
+	TMap<FName, TPair<TWeakObjectPtr<class UK2Node>, FName>> Resumes;
 };
 
 REGISTER_IMPORTER(IBlueprintImporter, (TArray<FString>{ 

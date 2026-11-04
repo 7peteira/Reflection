@@ -1,8 +1,6 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/UI/Validation/ValidationTab.h"
 
-/* Validation is UE5 only */
 #if ENGINE_UE5
 
 #include "Engine/Compatibility.h"
@@ -83,7 +81,7 @@ TSharedRef<SDockTab> FValidationTab::Spawn(const FSpawnTabArgs& Args) {
 	ActivePanel = Panel;
 
 	return SNew(SDockTab)
-		.TabRole(ETabRole::NomadTab)
+		.TabRole(NomadTab)
 		[
 			Panel
 		];

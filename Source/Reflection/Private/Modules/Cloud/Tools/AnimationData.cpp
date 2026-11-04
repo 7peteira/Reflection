@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Cloud/Tools/AnimationData.h"
 #include "Engine/EngineUtilities.h"
 
@@ -35,12 +34,11 @@ void TToolAnimationData::Process(UObject* Object, const TArray<TSharedPtr<FJsonV
 
 		ReadAnimationData(this, false);
 
-		/* Notification */
 		AppendNotification(
 			FText::FromString("Reflected Animation Data: " + AnimSequence->GetName()),
 			FText::FromString(AnimSequence->GetName()),
 			3.5f,
-			FAppStyle::Get().GetBrush("PhysicsAssetEditor.EnableCollision.Small"),
+			FAppStyle::Get().GetBrush("PhysicsAssetEditor.EnableCollision"),
 			SNotificationItem::CS_Success,
 			false,
 			310.0f

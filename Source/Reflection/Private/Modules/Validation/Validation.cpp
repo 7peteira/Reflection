@@ -1,8 +1,6 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Validation/Validation.h"
 
-/* Validation is UE5 only */
 #if ENGINE_UE5
 
 #include "Modules/Cloud/Cloud.h"
@@ -78,7 +76,6 @@ void FValidation::Start(const FString& RootPath) {
 }
 
 void FValidation::Cancel() {
-	/* Responses still in flight belong to the previous run and get dropped on arrival */
 	RunId++;
 
 	bRunning = false;
@@ -122,13 +119,10 @@ void FValidation::GatherAssets(const FString& RootPath) {
 
 		const FString PackagePath = AssetData.PackageName.ToString();
 
-		/* One World Partition level generates thousands of these, and none of them are shipped
-		 * as standalone packages, so validating them would only ever produce noise */
 		if (PackagePath.Contains(TEXT("/__External"))) {
 			continue;
 		}
 
-		/* Multiple assets can share a package, and the package is what gets validated */
 		if (EntryLookup.Contains(PackagePath)) {
 			continue;
 		}
@@ -180,7 +174,6 @@ void FValidation::DispatchBatches() {
 			[WeakValidation, DispatchRunId, BatchStart, BatchEnd](const TSharedPtr<FJsonObject>& Response, const int32 ResponseCode) {
 				const TSharedPtr<FValidation> Validation = WeakValidation.Pin();
 
-				/* The panel could have been closed, or a new validation started, while this was in flight */
 				if (!Validation.IsValid() || Validation->RunId != DispatchRunId) {
 					return;
 				}
@@ -195,9 +188,9 @@ void FValidation::DispatchBatches() {
 void FValidation::HandleBatchResponse(const int32 BatchStart, const int32 BatchEnd, const TSharedPtr<FJsonObject>& Response, const int32 ResponseCode) {
 	if (!Response.IsValid()) {
 		if (ResponseCode == 404) {
-			Finish(TEXT("This Cloud build has no '/api/validate' endpoint. Update Core to run validation."));
+			Finish(TEXT("This Cloud build has no '/api/validate' endpoint. Update Mirror to run validation."));
 		} else if (ResponseCode == 0) {
-			Finish(TEXT("Couldn't reach the Cloud. Make sure Core is running and a profile is loaded."));
+			Finish(TEXT("Couldn't reach the Cloud. Make sure Mirror is running and a profile is loaded."));
 		} else {
 			Finish(FString::Printf(TEXT("The Cloud rejected the validation request (HTTP %d)."), ResponseCode));
 		}
@@ -230,7 +223,6 @@ void FValidation::HandleBatchResponse(const int32 BatchStart, const int32 BatchE
 
 		const TSharedPtr<FValidationEntry>& Entry = *Found;
 
-		/* A duplicated path in the response must not be counted twice */
 		if (Entry->Status != EValidationStatus::Pending) {
 			continue;
 		}
@@ -260,7 +252,6 @@ void FValidation::HandleBatchResponse(const int32 BatchStart, const int32 BatchE
 		CheckedCount++;
 	}
 
-	/* Anything the Cloud skipped still has to move off Pending, or validation would never end */
 	for (int32 Index = BatchStart; Index < BatchEnd; Index++) {
 		const TSharedPtr<FValidationEntry>& Entry = Entries[Index];
 

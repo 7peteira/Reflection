@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Cloud/Tools/FontData.h"
 
 #include "Engine/FontFace.h"
@@ -27,7 +26,6 @@ void TToolFontData::Process(UObject* Object, const TArray<TSharedPtr<FJsonValue>
 		if (Name != Object->GetName()) continue;
 		if (Type != TargetType) continue;
 
-		/* Create an object serializer */
 		GetObjectSerializer()->ExportsToNotDeserialize.Empty();
 		GetObjectSerializer()->SetExportForDeserialization(JsonObject, FontFace);
 		GetObjectSerializer()->Parent = FontFace;
@@ -41,7 +39,6 @@ void TToolFontData::Process(UObject* Object, const TArray<TSharedPtr<FJsonValue>
 
 		BrowseToWhenFinished(FontFace);
 
-		/* Notification */
 		AppendNotification(
 			FText::FromString("Reflected Data: " + FontFace->GetName()),
 			FText::FromString(FontFace->GetName()),

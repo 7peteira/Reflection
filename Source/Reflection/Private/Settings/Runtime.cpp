@@ -1,13 +1,10 @@
-
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Settings/Runtime.h"
 
 #include "Misc/FileHelper.h"
 #include "Engine/EngineUtilities.h"
 #include "Utilities/JsonHelpers.h"
 
-/* Define Global Struct */
 FRRuntime GReflectionRuntime;
 
 bool FRRuntime::IsOlderUE4Target() const {
@@ -22,14 +19,16 @@ bool FRRuntime::IsUE4() const {
 	return MajorVersion == 4;
 }
 
+bool FRRuntime::IsUE5OrNewer() const {
+	return MajorVersion >= 5;
+}
+
 void FRRuntime::Update() {
 	FString AppDataPath = FPlatformMisc::GetEnvironmentVariable(TEXT("APPDATA"));
 	AppDataPath = FPaths::Combine(AppDataPath, TEXT("FModel/AppSettings.json"));
 
-	FString FileContent;
-	if (FFileHelper::LoadFileToString(FileContent, *AppDataPath)) {
-		TSharedPtr<FJsonObject> JsonObject;
-		if (DeserializeJSONObject(FileContent, JsonObject)) {
+	if (FString FileContent; FFileHelper::LoadFileToString(FileContent, *AppDataPath)) {
+		if (TSharedPtr<FJsonObject> JsonObject; DeserializeJSONObject(FileContent, JsonObject)) {
 			ExportDirectory.Path = JsonObject->GetStringField(TEXT("PropertiesDirectory")).Replace(TEXT("\\"), TEXT("/"));
 		}
 	}

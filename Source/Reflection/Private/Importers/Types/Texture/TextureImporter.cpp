@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/Texture/TextureImporter.h"
 
 #include "Importers/Types/Texture/TextureCreator.h"
@@ -9,21 +8,16 @@
 #include "Engine/TextureLightProfile.h"
 #include "Engine/EngineUtilities.h"
 #include "Engine/Log.h"
-#include "HttpModule.h"
-#include "Interfaces/IHttpResponse.h"
 #include "Modules/Cloud/Cloud.h"
-#include "Modules/Cloud/Remote.h"
 #include "Settings/ReflectionSettings.h"
 #include "Utilities/ContentBrowser.h"
 
-/* AssetRegistryModule.h only moved under an AssetRegistry/ folder later on */
 #if UE4_25_BELOW
 #include "AssetRegistryModule.h"
 #else
 #include "AssetRegistry/AssetRegistryModule.h"
 #endif
 
-/* Explicit instantiation of ITextureImporter for UObject */
 template class ITextureImporter<UTexture>;
 template class ITextureImporter<UTextureLightProfile>;
 
@@ -35,33 +29,14 @@ bool ITextureImporter<AssetType>::Import() {
 	return true;
 }
 
-/*
- * The pixels come from the export endpoint too, with the content type of the request picking the
- * encoding: an image the texture factory can take, or the raw bytes of the first mip.
- */
 static bool DownloadPixels(const FString& FetchPath, const FString& Type, const TSharedPtr<FJsonObject>& Export, TArray<uint8>& OutData) {
 	const bool UseRawMipData = FTextureTypes::RequiresRawMipData(Type, FTextureTypes::IsVectorDisplacementMap(Export));
 
-	const FReflectionHttpRequest HttpRequest = FHttpModule::Get().CreateRequest();
+	FString Named;
 
-	HttpRequest->SetURL(Cloud::URL + Cloud::ExportURL + "?path=" + FetchPath);
-	HttpRequest->SetHeader("content-type", UseRawMipData ? "application/octet-stream" : "image/png");
-	HttpRequest->SetVerb(TEXT("GET"));
+	Export->TryGetStringField(TEXT("Name"), Named);
 
-	const FReflectionHttpResponse HttpResponse = FRemoteUtilities::ExecuteRequestBlocking(HttpRequest);
-
-	if (!HttpResponse.IsValid() || HttpResponse->GetResponseCode() != 200) {
-		return false;
-	}
-
-	/* Cloud answers with json when it couldn't decode the texture, never with pixels */
-	if (HttpResponse->GetContentType().StartsWith("application/json")) {
-		return false;
-	}
-
-	OutData = HttpResponse->GetContent();
-
-	return OutData.Num() > 0;
+	return Cloud::Export::GetBinaryBlocking(FetchPath, UseRawMipData ? TEXT("application/octet-stream") : TEXT("image/png"), OutData, Named);
 }
 
 bool FTextureImport::FromCloud(const FString& Path, const FString& FetchPath, UTexture*& OutTexture) {
@@ -79,7 +54,37 @@ bool FTextureImport::FromCloud(const FString& Path, const FString& FetchPath, UT
 		return false;
 	}
 
-	const TSharedPtr<FJsonObject> Export = Exports[0]->AsObject();
+	int32 Wanted = INDEX_NONE;
+
+	if (FString Leaf; Path.Split(TEXT("."), nullptr, &Leaf, ESearchCase::CaseSensitive, ESearchDir::FromEnd)) {
+		if (Leaf.IsNumeric()) {
+			if (const int32 At = FCString::Atoi(*Leaf); Exports.IsValidIndex(At)) {
+				Wanted = At;
+			}
+		} else {
+			for (int32 At = 0; At < Exports.Num() && Wanted == INDEX_NONE; ++At) {
+				const TSharedPtr<FJsonObject> One = Exports[At].IsValid() ? Exports[At]->AsObject() : nullptr;
+
+				FString Named;
+
+				if (One.IsValid() && One->TryGetStringField(TEXT("Name"), Named) && Named == Leaf) {
+					Wanted = At;
+				}
+			}
+		}
+	}
+
+	for (int32 At = 0; At < Exports.Num() && Wanted == INDEX_NONE; ++At) {
+		const TSharedPtr<FJsonObject> One = Exports[At].IsValid() ? Exports[At]->AsObject() : nullptr;
+
+		FString Named;
+
+		if (One.IsValid() && One->TryGetStringField(TEXT("Type"), Named) && FTextureTypes::IsSupported(Named)) {
+			Wanted = At;
+		}
+	}
+
+	const TSharedPtr<FJsonObject> Export = Exports[Wanted == INDEX_NONE ? 0 : Wanted]->AsObject();
 	const FString Type = Export->GetStringField(TEXT("Type"));
 
 	TArray<uint8> Data;
@@ -99,10 +104,16 @@ bool FTextureImport::FromExport(const TSharedPtr<FJsonObject>& Export, const FSt
 		Path.Split(".", &PackagePath, &AssetName);
 	}
 
-	/* Where an asset lands is one decision, made in one place: the redirects, the plugin whatever
-	 * root it names, and the paths that arrive relative to the export directory */
+	if (FString Named; AssetName.IsNumeric() && Export->TryGetStringField(TEXT("Name"), Named)) {
+		AssetName = Named;
+	}
+
+	const FString PackageName = Settings->AssetSettings.PackagedAssets == ERPackagedAssets::Separate
+		? AssetName
+		: FPaths::GetBaseFilename(PackagePath);
+
 	FString FailureReason;
-	UPackage* Package = FAssetUtilities::CreateAssetPackage(AssetName, PackagePath, FailureReason);
+	UPackage* Package = FAssetUtilities::CreateAssetPackage(PackageName, PackagePath, FailureReason);
 
 	if (Package == nullptr) {
 		UE_LOG(LogReflection, Error, TEXT("No package for \"%s\": %s"), *Path, *FailureReason);
@@ -129,8 +140,7 @@ bool FTextureImport::FromExport(const TSharedPtr<FJsonObject>& Export, const FSt
 	Texture->AddToRoot();
 	Package->FullyLoad();
 
-	/* Textures don't go through HandleAssetCreation, so the jump to the asset has to happen here */
-	BrowseToAsset(Texture);
+	if (FAssetUtilities::ImportDepth <= 1) BrowseToAsset(Texture);
 
 	if (Settings->AssetSettings.SaveAssets) {
 		SavePackage(Package);

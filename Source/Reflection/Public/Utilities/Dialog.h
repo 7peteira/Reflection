@@ -1,11 +1,8 @@
-
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
-#ifndef __linux__
+#if  !PLATFORM_LINUX
 #include "Windows/WindowsPlatformApplicationMisc.h"
-#endif // __linux__
+#endif
 
 #include "Interfaces/IMainFrameModule.h"
 #include "DesktopPlatformModule.h"
@@ -21,45 +18,30 @@
 
 #include "Engine/Compatibility.h"
 
-/* 4.25 and below build this module without the engine's shared PCH (see Reflection.Build.cs),
- * which is where the message dialog used to come in from */
 #if UE4_25_BELOW
 #include "Misc/MessageDialog.h"
 #endif
 
-/* Prompts ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 inline void SpawnPrompt(const FString& Title, const FString& Text) {
-	const FText DialogTitle = FText::FromString(Title);
+	FText DialogTitle = FText::FromString(Title);
 	const FText DialogMessage = FText::FromString(Text);
 
 	FMessageDialog::Open(EAppMsgType::Ok, DialogMessage);
 }
 
-inline void SpawnYesNoPrompt(
-	const FString& Title,
-	const FString& Text,
-	const TFunction<void(bool)>& OnResponse)
-{
+inline auto SpawnYesNoPrompt = [](const FString& Title, const FString& Text, const TFunction<void(bool)>& OnResponse) {
 	const FText DialogTitle = FText::FromString(Title);
 	const FText DialogMessage = FText::FromString(Text);
 
 #if UE5_3_BEYOND
-	const EAppReturnType::Type Response =
-		FMessageDialog::Open(EAppMsgType::YesNo, DialogMessage, DialogTitle);
+	const EAppReturnType::Type Response = FMessageDialog::Open(EAppMsgType::YesNo, DialogMessage, DialogTitle);
 #else
-	const EAppReturnType::Type Response =
-		FMessageDialog::Open(EAppMsgType::YesNo, DialogMessage, &DialogTitle);
+	const EAppReturnType::Type Response = FMessageDialog::Open(EAppMsgType::YesNo, DialogMessage, &DialogTitle);
 #endif
 
 	OnResponse(Response == EAppReturnType::Yes);
-}
+};
 
-/*
- * Asks the user for some text, seeded with whatever is already in InOutText.
- *
- * Multi line, because everything that needs typed input here takes a list. Returns false when the
- * user cancels or leaves it empty, in which case InOutText is left alone.
- */
 inline bool SpawnTextEntryPrompt(const FString& Title, const FString& Hint, FString& InOutText) {
 	bool Accepted = false;
 
@@ -137,11 +119,10 @@ inline bool SpawnTextEntryPrompt(const FString& Title, const FString& Hint, FStr
 	return Accepted && !InOutText.IsEmpty();
 }
 
-/* Clipboard and file pickers ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 inline FString GetClipboard() {
 	FString ClipboardContent;
-#ifndef __linux__
-	/* @LINUX.CLIPBOARD */
+
+#if  !PLATFORM_LINUX
 	FPlatformApplicationMisc::ClipboardPaste(ClipboardContent);
 #endif
 
@@ -151,7 +132,6 @@ inline FString GetClipboard() {
 inline TArray<FString> OpenFileDialog(const FString& Title, const FString& Type) {
 	TArray<FString> ReturnValue;
 
-	/* Window Handler for Windows */
 	const void* ParentWindowHandle = nullptr;
 	const IMainFrameModule& MainFrameModule = IMainFrameModule::Get();
 	const TSharedPtr<SWindow> MainWindow = MainFrameModule.GetParentWindow();
@@ -187,7 +167,6 @@ inline FString OpenFolderDialog(const FString& Title, const FString& DefaultPath
 
 	const IMainFrameModule& MainFrameModule = IMainFrameModule::Get();
 	const TSharedPtr<SWindow> MainWindow = MainFrameModule.GetParentWindow();
-
 	if (MainWindow.IsValid() && MainWindow->GetNativeWindow().IsValid()) {
 		ParentWindowHandle = MainWindow->GetNativeWindow()->GetOSWindowHandle();
 	}
@@ -202,7 +181,6 @@ inline FString OpenFolderDialog(const FString& Title, const FString& DefaultPath
 inline TArray<FString> OpenFolderDialog(const FString& Title) {
 	TArray<FString> ReturnValue;
 
-	/* Window Handler for Windows */
 	const void* ParentWindowHandle = nullptr;
 
 	const IMainFrameModule& MainFrameModule = IMainFrameModule::Get();
@@ -215,7 +193,6 @@ inline TArray<FString> OpenFolderDialog(const FString& Title) {
 	if (IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get()) {
 		FString SelectedFolder;
 
-		/* Open Folder Dialog */
 		if (DesktopPlatform->OpenDirectoryDialog(ParentWindowHandle, Title, FString(""), SelectedFolder)) {
 			ReturnValue.Add(SelectedFolder);
 		}

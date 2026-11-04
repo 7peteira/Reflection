@@ -1,5 +1,3 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -9,12 +7,14 @@
 class SEditableTextBox;
 class SWindow;
 
-/* Builds up a list of asset paths to reflect, one Cloud knows about rather than one in this
- * project.
- *
- * Nothing here can be checked without asking Cloud for the asset itself, so the dialog is about
- * getting the list right: what is queued stays visible, and anything wrong can be taken back out
- * before the run starts. */
+enum class EReflectPathsChoice : uint8 {
+	Cancelled,
+
+	Reflect,
+
+	Folder
+};
+
 class REFLECTION_API SReflectPathsDialog : public SCompoundWidget {
 public:
 	SLATE_BEGIN_ARGS(SReflectPathsDialog) {}
@@ -23,23 +23,19 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
-	/* Runs the dialog modally. True when the user chose to reflect, with OutPaths holding
-	 * everything queued. */
-	static bool Open(TArray<FString>& OutPaths);
+	static EReflectPathsChoice Open(TArray<FString>& OutPaths, FString& OutFolder);
 
 private:
 	FReply OnAddClicked();
+	FReply OnFolderClicked();
 	FReply OnReflectClicked();
 
 	void OnPathCommitted(const FText& NewText, ETextCommit::Type CommitType);
 
-	/* Queues whatever is in the box, which may be several paths pasted at once */
 	void AddFromBox();
 
-	/* One entry per path, ignoring blanks and anything already queued */
 	void AddPaths(const FString& Text);
 
-	/* Takes one entry back out, from the cross on its own row */
 	FReply RemovePath(TSharedPtr<FString> Path);
 
 	bool CanAdd() const;
@@ -57,4 +53,5 @@ private:
 	TArray<TSharedPtr<FString>> Rows;
 
 	bool Accepted = false;
+	bool FolderRequested = false;
 };

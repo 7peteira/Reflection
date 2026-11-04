@@ -1,8 +1,6 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/UI/Validation/SValidationPanel.h"
 
-/* Validation is UE5 only */
 #if ENGINE_UE5
 
 #include "AssetToolsModule.h"
@@ -31,8 +29,6 @@
 #include "Widgets/Views/SHeaderRow.h"
 
 #define LOCTEXT_NAMESPACE "Reflection.Validation"
-
-/* Row of the results list ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 class SValidationRow : public SMultiColumnTableRow<TSharedPtr<FValidationEntry>> {
 public:
@@ -109,8 +105,6 @@ private:
 	TSharedPtr<FValidationEntry> Entry;
 };
 
-/* Panel ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
 void SValidationPanel::Construct(const FArguments& InArgs) {
 	Validation = MakeShared<FValidation>();
 	ValidationUpdatedHandle = Validation->OnUpdated.AddSP(this, &SValidationPanel::OnValidationUpdated);
@@ -119,7 +113,6 @@ void SValidationPanel::Construct(const FArguments& InArgs) {
 	[
 		SNew(SVerticalBox)
 
-		/* Toolbar */
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		[
@@ -131,7 +124,6 @@ void SValidationPanel::Construct(const FArguments& InArgs) {
 			]
 		]
 
-		/* Filters */
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(FMargin(8.0f, 4.0f))
@@ -139,7 +131,6 @@ void SValidationPanel::Construct(const FArguments& InArgs) {
 			BuildFilterBar()
 		]
 
-		/* Reason validation couldn't run */
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(FMargin(8.0f, 0.0f, 8.0f, 4.0f))
@@ -156,7 +147,6 @@ void SValidationPanel::Construct(const FArguments& InArgs) {
 			]
 		]
 
-		/* Results */
 		+ SVerticalBox::Slot()
 		.FillHeight(1.0f)
 		.Padding(FMargin(8.0f, 0.0f))
@@ -208,7 +198,6 @@ void SValidationPanel::Construct(const FArguments& InArgs) {
 			]
 		]
 
-		/* Details of the selected row */
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(FMargin(8.0f, 4.0f))
@@ -219,7 +208,6 @@ void SValidationPanel::Construct(const FArguments& InArgs) {
 			]
 		]
 
-		/* Footer */
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		[
@@ -247,8 +235,6 @@ void SValidationPanel::Tick(const FGeometry& AllottedGeometry, const double InCu
 		return;
 	}
 
-	/* Batches land faster than the list is worth rebuilding, but once validation stops the
-	 * results have to be up to date immediately */
 	if (IsRunning() && InCurrentTime - LastRefreshTime < RefreshInterval) {
 		return;
 	}
@@ -433,9 +419,6 @@ TSharedRef<SWidget> SValidationPanel::BuildFooter() {
 		];
 }
 
-/* Running ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
-/* Turns whatever the user typed into a package path the Asset Registry will accept */
 static FString NormalizeRootPath(const FString& InRootPath) {
 	FString RootPath = InRootPath.TrimStartAndEnd();
 
@@ -464,7 +447,6 @@ void SValidationPanel::StartValidation() {
 
 	TWeakPtr<SValidationPanel> WeakPanel = SharedThis(this);
 
-	/* Surfaces the usual "no Cloud instance" notification when Core isn't up */
 	Cloud::Status::Check([WeakPanel, RootPath](const bool bReady) {
 		const TSharedPtr<SValidationPanel> Panel = WeakPanel.Pin();
 		if (!Panel.IsValid() || !Panel->Validation.IsValid()) {
@@ -549,8 +531,6 @@ bool SValidationPanel::CanRun() const {
 bool SValidationPanel::IsRunning() const {
 	return Validation.IsValid() && Validation->IsRunning();
 }
-
-/* Results ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 TSharedRef<ITableRow> SValidationPanel::GenerateRow(TSharedPtr<FValidationEntry> Entry, const TSharedRef<STableViewBase>& OwnerTable) {
 	return SNew(SValidationRow, OwnerTable)
@@ -673,7 +653,6 @@ void SValidationPanel::RefreshList() {
 			Compare = A->GetSuggestedPath().Compare(B->GetSuggestedPath(), ESearchCase::IgnoreCase);
 		}
 
-		/* Package paths are unique, so they settle any tie deterministically */
 		if (Compare == 0) {
 			Compare = A->PackagePath.Compare(B->PackagePath, ESearchCase::IgnoreCase);
 		}
@@ -712,10 +691,6 @@ bool SValidationPanel::PassesFilters(const TSharedPtr<FValidationEntry>& Entry) 
 		|| Entry->GetSuggestedPath().Contains(SearchText);
 }
 
-/* Details ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
-/* Describes where the Cloud ended up looking. A hit and a miss want different wording, or a
- * valid asset reads like a failed lookup. */
 FText SValidationPanel::GetResolvedPathText(const TSharedPtr<FValidationEntry>& Entry) {
 	if (Entry->ResolvedPath.IsEmpty()) {
 		return LOCTEXT("DetailsUnresolvable", "This path couldn't be resolved to a game file.");
@@ -748,8 +723,6 @@ TSharedRef<SWidget> SValidationPanel::BuildDetails() const {
 
 	TSharedRef<SVerticalBox> Locations = SNew(SVerticalBox);
 
-	/* A valid asset never has suggestions, so this has to key off the status rather than
-	 * the suggestion count, or being in the right place reads as being nowhere */
 	if (Entry->Status == EValidationStatus::Valid) {
 		Locations->AddSlot()
 		.AutoHeight()
@@ -829,8 +802,6 @@ TSharedRef<SWidget> SValidationPanel::BuildDetails() const {
 		];
 }
 
-/* Actions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
 void SValidationPanel::BrowseToEntry(TSharedPtr<FValidationEntry> Entry) {
 	if (!Entry.IsValid()) {
 		return;
@@ -887,13 +858,10 @@ void SValidationPanel::MoveEntryTo(TSharedPtr<FValidationEntry> Entry, FString D
 		return;
 	}
 
-	/* The validation result is stale now, the asset lives at the suggested location */
 	Entry->PackagePath = Destination + TEXT("/") + Entry->AssetName;
 	Entry->Status = EValidationStatus::Valid;
 	Entry->Suggestions.Reset();
 }
-
-/* Text ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 FText SValidationPanel::GetSummaryText() const {
 	if (!Validation.IsValid() || Validation->GetEntries().Num() == 0) {

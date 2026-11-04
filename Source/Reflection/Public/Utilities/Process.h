@@ -1,14 +1,17 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
-#ifndef __linux__
+#include "HAL/PlatformProcess.h"
+
+#if  !PLATFORM_LINUX
 #include "Windows/WindowsHWrapper.h"
-#include "TlHelp32.h"
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <TlHelp32.h>
+#include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
 inline void CloseApplicationByProcessName(const FString& ProcessName) {
-#ifndef __linux__
+
+#if  !PLATFORM_LINUX
 	DWORD ProcessID = 0;
 
 	const HANDLE Snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -38,15 +41,14 @@ inline void CloseApplicationByProcessName(const FString& ProcessName) {
 		}
 	}
 #else
-	/* @LINUX.PROCESSES */
 #endif
 }
 
 inline bool IsProcessRunning(const FString& ProcessName) {
-#ifndef __linux__
+
+#if  !PLATFORM_LINUX
 	bool IsRunning = false;
 
-	/* Convert FString to WCHAR */
 	const TCHAR* ProcessNameChar = *ProcessName;
 
 	const HANDLE Snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -68,7 +70,6 @@ inline bool IsProcessRunning(const FString& ProcessName) {
 
 	return IsRunning;
 #else
-	/* @LINUX.PROCESSES */
 	return true;
 #endif
 }

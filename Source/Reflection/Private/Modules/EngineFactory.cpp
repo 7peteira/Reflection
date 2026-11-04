@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/EngineFactory.h"
 
 UREngineImplementation::UREngineImplementation() {

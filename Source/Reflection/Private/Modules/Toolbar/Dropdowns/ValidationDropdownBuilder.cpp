@@ -1,8 +1,6 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Toolbar/Dropdowns/ValidationDropdownBuilder.h"
 
-/* Validation is UE5 only */
 #if ENGINE_UE5
 
 #include "Modules/Validation/ValidatorRegistry.h"
@@ -24,7 +22,6 @@ void IValidationDropdownBuilder::Build(FMenuBuilder& MenuBuilder) const {
 		}
 
 		for (const FReflectionValidator& Validator : Validators) {
-			/* Validators offering their own scopes or presets become a submenu */
 			if (Validator.BuildMenu.IsBound()) {
 				MenuBuilder.AddSubMenu(
 					Validator.Label,

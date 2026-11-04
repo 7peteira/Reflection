@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Serializers/Structs/FallbackStructSerializer.h"
 
 #include "Serializers/PropertySerializer.h"
@@ -67,7 +66,7 @@ void FFallbackStructSerializer::Deserialize(UScriptStruct* Struct, void* StructV
 			}
 		}
 #endif
-		
+
 		if (PropertySerializer->ShouldDeserializeProperty(Property)) {
 			void* PropertyValue = Property->ContainerPtrToValuePtr<void>(StructValue);
 
@@ -84,7 +83,7 @@ void FFallbackStructSerializer::Deserialize(UScriptStruct* Struct, void* StructV
 
 		if (Struct->IsChildOf(FRichCurveKey::StaticStruct())) {
 			FRichCurveKey* RichCurveKey = static_cast<FRichCurveKey*>(StructValue);
-			
+
 			if (RichCurveKey->TangentWeightMode == 183) {
 				RichCurveKey->TangentWeightMode = RCTWM_WeightedNone;
 			}

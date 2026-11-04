@@ -1,5 +1,3 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "UObject/Object.h"
@@ -27,10 +25,8 @@ public:
     void DeserializeExports(FUObjectExportContainer* Container, bool CreateObjects = true);
     void DeserializeExport(FUObjectExport* Export, TMap<TSharedPtr<FJsonObject>, UObject*>& ExportsMap);
 
-    /* New Generation */
     UObject* SpawnExport(FUObjectExport* Export, bool bOnlySerialize = false);
 
-    /* Spawns exports as they are referenced */
     bool bUseExperimentalSpawning = false;
 
 public:
@@ -39,7 +35,7 @@ public:
 
     UPROPERTY()
     TMap<FString, UObject*> ConstructedObjects;
-    
+
     UPROPERTY()
     UPropertySerializer* PropertySerializer;
 

@@ -1,5 +1,3 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -16,8 +14,13 @@ public:
 	virtual FSlateIcon GetIcon() const override { return FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.SkeletalMeshComponent"); }
 
 protected:
-	/* By reference: the caller writes slots back into the mesh */
 	static TArray<FSkeletalMaterial>& GetMaterials(USkeletalMesh* Mesh);
+
+	static int32 ApplySectionUserData(USkeletalMesh* Mesh, const TSharedPtr<FJsonObject>& MeshExport);
+
+	static int32 ApplySkinWeightProfiles(USkeletalMesh* Mesh);
+
+	static void ReportSkinWeightProfiles(USkeletalMesh* Mesh);
 };
 
 REGISTER_TOOL(TSkeletalMeshData)

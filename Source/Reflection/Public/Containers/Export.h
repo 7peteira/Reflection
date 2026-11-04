@@ -1,6 +1,6 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
+
+#include "Engine/SharedPtrCompatibility.h"
 
 #include "Containers/JsonValueExport.h"
 #include "Dom/JsonObject.h"
@@ -19,6 +19,32 @@ inline FString StripObjectOuter(const FString& InObjectName) {
 	return Result;
 }
 
+inline bool IsAssetPathLike(const FString& Line) {
+	FString Path = StripObjectOuter(Line.TrimStartAndEnd());
+	Path.ReplaceInline(TEXT("\\"), TEXT("/"));
+
+	if (Path.IsEmpty()) {
+		return false;
+	}
+
+	int32 Slash;
+	if (!Path.FindChar(TEXT('/'), Slash) || Path.Len() < 3) {
+		return false;
+	}
+
+	for (const TCHAR Character : Path) {
+		if (FChar::IsWhitespace(Character)) {
+			return false;
+		}
+
+		if (FCString::Strchr(TEXT("?*:\"<>|"), Character) != nullptr) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 inline FString GetObjectNameFromOuter(const FString& InObjectName) {
 	return FPackageName::ObjectPathToObjectName(StripObjectOuter(InObjectName));
 }
@@ -27,24 +53,26 @@ inline FString GetOuterFromObjectOuter(const TSharedPtr<FJsonValue>& Outer) {
 	if (!Outer.IsValid()) {
 		return TEXT("");
 	}
-	
+
 	if (Outer->Type == EJson::Object) {
 		return GetObjectNameFromOuter(StripObjectOuter(Outer->AsObject()->GetStringField(TEXT("ObjectName"))));
 	}
-	
+
 	return Outer->AsString();
 }
 
+#if !PLATFORM_LINUX
 inline FString ReadPathFromObject(const FUObjectJsonValueExport& PackageIndex);
+#else
+FString ReadPathFromObject(const FUObjectJsonValueExport& PackageIndex);
+#endif
 
-/* A structure to hold data for a UObject export. */
 struct REFLECTION_API FUObjectExport : FUObjectJsonValueExport {
 	FUObjectExport(): Object(nullptr), Parent(nullptr), Package(nullptr), Position(-1) { };
-	
+
 	TSharedPtr<void> ExtraData;
 	FName ExtraDataType;
 
-	/* Object created */
 	UObject* Object;
 
 	template<typename T>
@@ -52,7 +80,6 @@ struct REFLECTION_API FUObjectExport : FUObjectJsonValueExport {
 		return Object ? Cast<T>(Object) : nullptr;
 	}
 
-	/* Parent of this expression */
 	UObject* Parent;
 	UPackage* Package;
 	int Position;
@@ -112,16 +139,16 @@ struct REFLECTION_API FUObjectExport : FUObjectJsonValueExport {
 	FUObjectJsonValueExport GetJsonObject() const {
 		return FUObjectJsonValueExport(JsonObject);
 	}
-	
+
 	UClass* GetClass();
-	
+
 	FName NameOverride;
 
 	FName GetName() const {
 		if (!NameOverride.IsNone()) {
 			return NameOverride;
 		}
-		
+
 		if (!JsonObject.IsValid() || !JsonObject->HasField(TEXT("Name"))) {
 			return NAME_None;
 		}
@@ -135,14 +162,14 @@ struct REFLECTION_API FUObjectExport : FUObjectJsonValueExport {
 		if (!TypeOverride.IsNone()) {
 			return TypeOverride;
 		}
-		
+
 		if (!JsonObject.IsValid() || !JsonObject->HasField(TEXT("Type"))) {
 			return NAME_None;
 		}
-		
+
 		return FName(*JsonObject->GetStringField(TEXT("Type")));
 	}
-	
+
 	FName OuterOverride;
 
 	FName GetOuter() const {
@@ -153,13 +180,13 @@ struct REFLECTION_API FUObjectExport : FUObjectJsonValueExport {
 		if (!JsonObject.IsValid() || !JsonObject->HasField(TEXT("Outer"))) {
 			return NAME_None;
 		}
-		
+
 		return FName(*GetOuterFromObjectOuter(JsonObject->TryGetField(TEXT("Outer"))));
 	}
 
 	FName GetOuterTree() const {
 		bool bIsPath = JsonObject->HasField(TEXT("ObjectName"));
-		
+
 		if (!JsonObject.IsValid()) {
 			return NAME_None;
 		}
@@ -174,7 +201,7 @@ struct REFLECTION_API FUObjectExport : FUObjectJsonValueExport {
 		if (!OuterObject.IsValid() || !OuterObject->HasField(TEXT("ObjectName"))) {
 			return NAME_None;
 		}
-		
+
 		return FName(*StripObjectOuter(OuterObject->GetStringField(TEXT("ObjectName"))));
 	}
 
@@ -186,7 +213,6 @@ struct REFLECTION_API FUObjectExport : FUObjectJsonValueExport {
 			return Result;
 		}
 
-		/* Normalize delimiters: treat '.' like ':' */
 		OuterTree.ReplaceInline(TEXT("."), TEXT(":"));
 
 		TArray<FString> Parts;
@@ -202,7 +228,6 @@ struct REFLECTION_API FUObjectExport : FUObjectJsonValueExport {
 
 		if (bRemoveLast && Result.Num() > 0) {
 	#if UE5_6_BEYOND
-			/* Pop's bool parameter became EAllowShrinking in 5.4, and the bool overload was removed in 5.8 */
 			Result.Pop(EAllowShrinking::No);
 	#else
 			Result.Pop(false);
@@ -237,13 +262,6 @@ struct REFLECTION_API FUObjectExport : FUObjectJsonValueExport {
 		return !IsJsonValid();
 	}
 
-	/* Handed back by every container lookup that finds nothing, so a caller can chain off the
-	 * result without checking for null first.
-	 *
-	 * There is one of these for the whole process, and callers that write to what a lookup gave
-	 * them without testing it first end up writing here. Object is cleared on the way out so a
-	 * stale one can never be read back by the next miss, which would hand out a pointer to an
-	 * object from an unrelated import that may no longer exist. */
 	static FUObjectExport* EmptyExport() {
 		static FUObjectExport* Empty = []() {
 			FUObjectExport* Export = new FUObjectExport();
@@ -269,10 +287,9 @@ struct REFLECTION_API FUObjectExport : FUObjectJsonValueExport {
 	bool HasProperty(const FString& FieldName) const {
 		return GetPropertiesAsValue().Has(FieldName);
 	}
-	
+
 protected:
 	UClass* Class = nullptr;
 
-	/* Only ever true for the one EmptyExport */
 	bool bEmpty = false;
 };

@@ -1,9 +1,6 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "Dom/JsonObject.h"
-#include "UObject/Object.h"
 #include "Engine/Compatibility.h"
 
 struct REFLECTION_API FUObjectJsonValueExport {
@@ -11,7 +8,7 @@ struct REFLECTION_API FUObjectJsonValueExport {
 		JsonObject = MakeShared<FJsonObject>();
 		Value = MakeShared<FJsonValueObject>(JsonObject);
 	}
-	
+
 	FUObjectJsonValueExport(const TSharedPtr<FJsonValue>& Value) : Value(Value) {
 		if (Value.IsValid() && Value->Type == EJson::Object) {
 			JsonObject = Value->AsObject();
@@ -21,16 +18,14 @@ struct REFLECTION_API FUObjectJsonValueExport {
 	FUObjectJsonValueExport(const TSharedPtr<FJsonObject>& InJsonObject) {
 		JsonObject = InJsonObject;
 
-		/* Only create Value if needed */
 		if (JsonObject.IsValid()) {
 			Value = MakeShared<FJsonValueObject>(JsonObject);
 		}
 	}
-	
+
 	TSharedPtr<FJsonValue> Value;
 	TSharedPtr<FJsonObject> JsonObject;
-	
-	/* Json Helpers */
+
 	FString GetString(const FString& FieldName) const {
 		return JsonObject->GetStringField(FieldName);
 	}
@@ -47,10 +42,10 @@ struct REFLECTION_API FUObjectJsonValueExport {
 		if (Has(FieldName)) {
 			return JsonObject->GetIntegerField(FieldName);
 		}
-		
+
 		return Default;
 	}
-	
+
 	void SetInteger(const FString& FieldName, const int32& NewValue) const {
 		JsonObject->SetNumberField(FieldName, NewValue);
 	}
@@ -63,7 +58,7 @@ struct REFLECTION_API FUObjectJsonValueExport {
 		if (Has(FieldName)) {
 			return JsonObject->GetBoolField(FieldName);
 		}
-		
+
 		return Default;
 	}
 
@@ -74,7 +69,7 @@ struct REFLECTION_API FUObjectJsonValueExport {
 	double GetNumber(const FString& FieldName) const {
 		return JsonObject->GetNumberField(FieldName);
 	}
-		
+
 	void SetNumber(const FString& FieldName, const double& NewValue) const {
 		JsonObject->SetNumberField(FieldName, NewValue);
 	}
@@ -85,7 +80,6 @@ struct REFLECTION_API FUObjectJsonValueExport {
 			return EmptyObject;
 		}
 
-		/* TMap::FindByHash, which saves rehashing the key HasField already hashed, came later */
 #if UE4_24_BELOW
 		const TSharedPtr<FJsonValue>* Field = JsonObject->Values.Find(FieldName);
 #else
@@ -100,10 +94,10 @@ struct REFLECTION_API FUObjectJsonValueExport {
 			static const TSharedPtr<FJsonObject> EmptyObject = MakeShared<FJsonObject>();
 			return EmptyObject;
 		}
-		
+
 		return JsonObject->GetObjectField(FieldName);
 	}
-	
+
 	void SetObject(const FString& FieldName, const TSharedPtr<FJsonObject>& NewValue) const {
 		JsonObject->SetObjectField(FieldName, NewValue);
 	}
@@ -114,6 +108,36 @@ struct REFLECTION_API FUObjectJsonValueExport {
 
 	void Remove(const FString& FieldName) const {
 		JsonObject->RemoveField(FieldName);
+	}
+
+	TArray<float> GetFloats(const FString& FieldName) const {
+		TArray<float> Result;
+
+		const TArray<TSharedPtr<FJsonValue>>* Values;
+		if (!JsonObject.IsValid() || !JsonObject->TryGetArrayField(FieldName, Values)) return Result;
+
+		Result.Reserve(Values->Num());
+
+		for (const TSharedPtr<FJsonValue>& Element : *Values) {
+			Result.Add(Element.IsValid() ? static_cast<float>(Element->AsNumber()) : 0.0f);
+		}
+
+		return Result;
+	}
+
+	TArray<uint32> GetUnsigneds(const FString& FieldName) const {
+		TArray<uint32> Result;
+
+		const TArray<TSharedPtr<FJsonValue>>* Values;
+		if (!JsonObject.IsValid() || !JsonObject->TryGetArrayField(FieldName, Values)) return Result;
+
+		Result.Reserve(Values->Num());
+
+		for (const TSharedPtr<FJsonValue>& Element : *Values) {
+			Result.Add(Element.IsValid() ? static_cast<uint32>(Element->AsNumber()) : 0u);
+		}
+
+		return Result;
 	}
 
 	TArray<FUObjectJsonValueExport> GetArray(const FString& FieldName) const {

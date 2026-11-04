@@ -1,18 +1,11 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/DataAssetImporter.h"
-#include "Engine/DataAsset.h"
+#include "Importers/Types/ItemDefinitionData.h"
 
-UObject* IDataAssetImporter::CreateAsset(UObject* CreatedAsset) {
-	return IImporter::CreateAsset(NewObject<UDataAsset>(GetPackage(), GetAssetClass(), StringToName(GetAssetName()), RF_Public | RF_Standalone));
-}
+#include "Engine/Log.h"
 
-bool IDataAssetImporter::Import() {
-	UDataAsset* DataAsset = Create<UDataAsset>();
-	auto _ = DataAsset->MarkPackageDirty();
-
-	DeserializeExports(DataAsset);
-	GetObjectSerializer()->DeserializeObjectProperties(GetAssetData(), DataAsset);
-	
-	return OnAssetCreation(DataAsset);
+void IDataAssetImporter::Repair(UObject* Asset) const {
+	if (const int32 Wrote = FItemDefinitionData::Apply(Asset, GetAssetData(), GetObjectSerializer()); Wrote > 0) {
+		UE_LOG(LogReflection, Display, TEXT("%d thing(s) the data list stood for were read onto \"%s\""), Wrote, *GetAssetName());
+	}
 }

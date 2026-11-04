@@ -1,13 +1,10 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
-#include "Importers/Constructor/Importer.h"
+#include "Importers/Constructor/ObjectImporter.h"
 
-class IDataAssetImporter : public IImporter {
+class IDataAssetImporter : public IObjectImporter {
 public:
-	virtual UObject* CreateAsset(UObject* CreatedAsset = nullptr) override;
-	virtual bool Import() override;
+	virtual void Repair(UObject* Asset) const override;
 };
 
 REGISTER_IMPORTER(IDataAssetImporter, {

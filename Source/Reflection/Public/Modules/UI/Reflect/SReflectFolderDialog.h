@@ -1,5 +1,3 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -9,41 +7,54 @@
 class SEditableTextBox;
 class SWindow;
 
-/* Picks a folder of game files to reflect, and shows what is in it before anything runs.
- *
- * Listing is a Cloud request rather than something the editor can answer, so it happens when
- * asked for instead of as the folder is typed. */
+enum class EReflectFolderChoice : uint8 {
+	Cancelled,
+
+	Reflect,
+
+	Back
+};
+
 class REFLECTION_API SReflectFolderDialog : public SCompoundWidget {
 public:
-	SLATE_BEGIN_ARGS(SReflectFolderDialog) {}
+	SLATE_BEGIN_ARGS(SReflectFolderDialog)
+		: _UseClipboard(false)
+		, _CanGoBack(false)
+		{}
 		SLATE_ARGUMENT(TSharedPtr<SWindow>, ParentWindow)
+		SLATE_ARGUMENT(FString, InitialFolder)
+
+		SLATE_ARGUMENT(bool, UseClipboard)
+
+		SLATE_ARGUMENT(bool, CanGoBack)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
 
-	/* Runs the dialog modally. True when the user chose to reflect, with OutPaths holding what
-	 * Cloud listed under the folder. */
-	static bool Open(TArray<FString>& OutPaths);
+	static EReflectFolderChoice Open(TArray<FString>& OutPaths, TSet<FString>& OutAllowedTypes, const FString& InitialFolder = FString(), bool bUseClipboard = false, bool bCanGoBack = false);
 
 private:
+	FReply OnBackClicked();
 	FReply OnFindClicked();
+	FReply OnTypesClicked();
 	FReply OnUseSelectedFolderClicked();
 	FReply OnReflectClicked();
 
 	void OnFolderCommitted(const FText& NewText, ETextCommit::Type CommitType);
 
-	/* Asks Cloud what is under whatever the box currently holds */
 	void Find();
 
 	bool CanFind() const;
 	bool CanReflect() const;
 
-	/* Whether the Content Browser has a folder selected to borrow */
+	EVisibility GetBackVisibility() const;
+
 	bool HasSelectedFolder() const;
 	FText GetSelectedFolderTooltip() const;
 
 	FText GetStatusText() const;
 	FText GetReflectText() const;
+	FText GetTypesText() const;
 
 	TSharedRef<ITableRow> GenerateRow(TSharedPtr<FString> Path, const TSharedRef<STableViewBase>& OwnerTable) const;
 
@@ -51,12 +62,15 @@ private:
 	TSharedPtr<SEditableTextBox> FolderBox;
 	TSharedPtr<SListView<TSharedPtr<FString>>> ListView;
 
-	/* The last Find's results, as rows and in the form the importer takes */
 	TArray<TSharedPtr<FString>> Rows;
 	TArray<FString> Paths;
 
-	/* Lets the status line tell "nothing looked for yet" apart from "nothing there" */
+	TSet<FString> AllowedTypes;
+
 	bool Searched = false;
 
+	bool CanGoBack = false;
+
 	bool Accepted = false;
+	bool BackRequested = false;
 };

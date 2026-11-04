@@ -1,14 +1,9 @@
 #include "Detex.h"
-#include "Modules/ModuleManager.h"
 
-void FDetexModule::StartupModule()
-{
-    // Module startup
+void FDetexModule::StartupModule() {
 }
 
-void FDetexModule::ShutdownModule()
-{
-    // Module shutdown
+void FDetexModule::ShutdownModule() {
 }
 
 IMPLEMENT_MODULE(FDetexModule, ReflectionDetex)

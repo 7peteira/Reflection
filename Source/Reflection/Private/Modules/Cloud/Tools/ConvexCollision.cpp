@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Cloud/Tools/ConvexCollision.h"
 
 #include "Engine/StaticMeshSocket.h"
@@ -12,7 +11,6 @@ void TToolConvexCollision::Process(UObject* Object, const TArray<TSharedPtr<FJso
 	UStaticMesh* StaticMesh = Cast<UStaticMesh>(Object);
 	if (StaticMesh == nullptr) return;
 
-	/* Get Body Setup (different in Unreal Engine versions) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 #if !UE4_27_ONLY_BELOW
 	UBodySetup* BodySetup = StaticMesh->GetBodySetup();
 #else
@@ -33,7 +31,6 @@ void TToolConvexCollision::Process(UObject* Object, const TArray<TSharedPtr<FJso
 		if (Type == "StaticMesh") {
 			StaticMesh->DistanceFieldSelfShadowBias = 0.0;
 
-			/* Create an object serializer */
 			StaticMesh->Sockets.Empty();
 
 			GetObjectSerializer()->SetExportForDeserialization(JsonObject, StaticMesh);
@@ -46,11 +43,7 @@ void TToolConvexCollision::Process(UObject* Object, const TArray<TSharedPtr<FJso
 			if (GetObjectSerializer()->GetPropertySerializer()->ExportsContainer) {
 				for (const FUObjectExport* UObjectExport : GetObjectSerializer()->GetPropertySerializer()->ExportsContainer->Exports) {
 					if (UStaticMeshSocket* Socket = Cast<UStaticMeshSocket>(UObjectExport->Object)) {
-						/* AddSocket, which is this plus a broadcast the editor listens to for
-						 * live socket updates, only arrived in 4.23 */
-// UE4.22/4.23 custom editor branches do not consistently expose AddSocket.
-						// Adding to the public socket array preserves the imported socket data.
-#if ENGINE_UE4
+#if UE4_23_BELOW
 						StaticMesh->Sockets.Add(Socket);
 #else
 						StaticMesh->AddSocket(Socket);
@@ -84,10 +77,8 @@ void TToolConvexCollision::Process(UObject* Object, const TArray<TSharedPtr<FJso
 			}), StaticMesh);
 		}
 
-		/* Check if the Class matches BodySetup */
 		if (Type != "BodySetup") continue;
 
-		/* Empty any collision data */
 		BodySetup->AggGeom.EmptyElements();
 		BodySetup->CollisionTraceFlag = CTF_UseDefault;
 
@@ -95,19 +86,17 @@ void TToolConvexCollision::Process(UObject* Object, const TArray<TSharedPtr<FJso
 
 		BodySetup->PostEditChange();
 
-		/* Update physics data */
 		BodySetup->InvalidatePhysicsData();
 		BodySetup->CreatePhysicsMeshes();
 
 		StaticMesh->MarkPackageDirty();
 		StaticMesh->Modify(true);
 
-		/* Notification */
 		AppendNotification(
 			FText::FromString("Reflected SM Data: " + StaticMesh->GetName()),
 			FText::FromString(StaticMesh->GetName()),
 			3.5f,
-			FAppStyle::Get().GetBrush("PhysicsAssetEditor.EnableCollision.Small"),
+			FAppStyle::Get().GetBrush("PhysicsAssetEditor.EnableCollision"),
 			SNotificationItem::CS_Success,
 			false,
 			310.0f

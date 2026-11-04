@@ -1,10 +1,3 @@
-/* CREDITS!!
- * Function originally created by C0bra5.
- *
- * Fork can be seen here:
- * https://github.com/C0bra5/Reflection
- */
-
 #pragma once
 
 #if ENGINE_UE5
@@ -28,8 +21,6 @@
 #include "Materials/MaterialExpressionUtils.h"
 #endif
 
-/* UMaterial only routes its expressions through an expression collection from 5.1 on;
- * before that they sit in the editor-only Expressions array directly */
 inline void AddStubExpression(UMaterial* Material, UMaterialExpression* Expression) {
 #if UE5_1_BEYOND
 	Material->GetExpressionCollection().AddExpression(Expression);
@@ -44,7 +35,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 
 	FExpressionInput* matInput;
 	if (Material->bUseMaterialAttributes) {
-		// for mats that use attribtues
 		x -= 16*8*2;
 		FExpressionInput* AttributeInput = Material->GetExpressionInputForProperty(EMaterialProperty::MP_MaterialAttributes);
 		UMaterialExpressionSetMaterialAttributes* setAttrNode = NewObject<UMaterialExpressionSetMaterialAttributes>(Material);
@@ -53,7 +43,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 		setAttrNode->MaterialExpressionEditorY = 0;
 		AttributeInput->Expression = setAttrNode;
 
-		// determine input type based on shading model.
 		switch (Material->MaterialDomain) {
 			case MD_Surface:
 				if (Material->GetShadingModels().HasShadingModel(EMaterialShadingModel::MSM_Unlit)) {
@@ -79,7 +68,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 		setAttrNode->Inputs.Last().InputName = FName(*FMaterialAttributeDefinitionMap::GetDisplayNameForMaterial(setAttrNode->AttributeSetTypes.Last(), Material).ToString());
 		matInput = &setAttrNode->Inputs.Last();
 	} else {
-		// for mats that don't use attributes
 		switch (Material->MaterialDomain) {
 			case MD_Surface:
 				if (Material->GetShadingModels().HasShadingModel(EMaterialShadingModel::MSM_Unlit)) {
@@ -116,8 +104,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 	TSharedPtr<FJsonObject> CachedExpressionData = MaterialImporter->GetAssetData()->GetObjectField(TEXT("CachedExpressionData"));
 	UMaterialExpressionAdd* lastAdd = NULL;
 
-	/* Legacy (UE 4.2x-era) exports nest the cached entries under "Parameters" ("ParameterInfos",
-	 * textures at RuntimeEntries[2]); UE 5.x keeps them flat ("ParameterInfoSet", [3]). */
 	const bool bNestedParameters = CachedExpressionData->HasTypedField<EJson::Object>(TEXT("Parameters"));
 	if (bNestedParameters) {
 		CachedExpressionData = CachedExpressionData->GetObjectField(TEXT("Parameters"));
@@ -125,8 +111,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 	const FString ParameterInfosKey = bNestedParameters ? TEXT("ParameterInfos") : TEXT("ParameterInfoSet");
 	const FString TextureEntriesKey = bNestedParameters ? TEXT("RuntimeEntries[2]") : TEXT("RuntimeEntries[3]");
 
-
-	// map known scalar params
 	if (
 		CachedExpressionData->HasTypedField<EJson::Object>(TEXT("RuntimeEntries"))
 		&& CachedExpressionData->GetObjectField(TEXT("RuntimeEntries"))->HasTypedField<EJson::Array>(ParameterInfosKey)
@@ -182,8 +166,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 		}
 	}
 
-
-	// map known vector params
 	if (
 		CachedExpressionData->HasTypedField<EJson::Object>(TEXT("RuntimeEntries[1]"))
 		&& CachedExpressionData->GetObjectField(TEXT("RuntimeEntries[1]"))->HasTypedField<EJson::Array>(ParameterInfosKey)
@@ -244,8 +226,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 		}
 	}
 
-
-	// map known texture params
 	if (
 		CachedExpressionData->HasTypedField<EJson::Object>(TextureEntriesKey)
 		&& CachedExpressionData->GetObjectField(TextureEntriesKey)->HasTypedField<EJson::Array>(ParameterInfosKey)
@@ -258,7 +238,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 			int32 i = 0;
 			x -= 16*8*4;
 			y = 0;
-			// import all known referenced textures;
 			if (CachedExpressionData->HasTypedField<EJson::Array>(TEXT("ReferencedTextures"))) {
 				for (const TSharedPtr<FJsonValue> refedTexture : CachedExpressionData->GetArrayField(TEXT("ReferencedTextures"))) {
 				}
@@ -269,7 +248,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 				UTexture* tex = nullptr;
 				if (paramObj->TryGetStringField(TEXT("Name"), paramName) && paramValuesPtr.IsValidIndex(i)) {
 					if (bNestedParameters) {
-						/* Legacy cached data references textures by package index */
 						const FJsonObject* TextureValueObj = paramValuesPtr[i]->AsObject().Get();
 						FString ObjectPath;
 						if (TextureValueObj && TextureValueObj->TryGetStringField(TEXT("ObjectPath"), ObjectPath)) {
@@ -279,7 +257,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 					}
 #if ENGINE_MINOR_VERSION <= 5
 					else {
-						/* UE 5.x textures are soft object paths (two-arg ctor gone in 5.6) */
 						TSharedPtr<FJsonObject>* TextureValueObj;
 						FString TextureAssetPath, TextureSubPath;
 						if (paramValuesPtr[i]->TryGetObject(TextureValueObj)
@@ -320,9 +297,6 @@ inline void CreateStubs(IMaterialImporter* MaterialImporter) {
 		}
 	}
 
-
-	// map known switch params
-	/* Legacy exports keep switches in editor-only StaticSwitchParameters; no-op for them. */
 	if (
 		CachedExpressionData->HasTypedField<EJson::Object>(TEXT("RuntimeEntries[7]"))
 		&& CachedExpressionData->GetObjectField(TEXT("RuntimeEntries[7]"))->HasTypedField<EJson::Array>(ParameterInfosKey)

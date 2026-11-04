@@ -1,12 +1,9 @@
 #include "NVTT.h"
-#include "Modules/ModuleManager.h"
 
-void FNVTTModule::StartupModule()
-{
+void FNVTTModule::StartupModule() {
 }
 
-void FNVTTModule::ShutdownModule()
-{
+void FNVTTModule::ShutdownModule() {
 }
 
 IMPLEMENT_MODULE(FNVTTModule, ReflectionNVTT)

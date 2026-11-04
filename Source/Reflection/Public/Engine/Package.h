@@ -1,10 +1,20 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "Engine/Compatibility.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Engine/FontFace.h"
 
-/* AssetRegistryModule.h only moved under an AssetRegistry/ folder later on */
+#include "Engine/StaticMesh.h"
+
+#if ENGINE_UE5
+#include "StaticMeshCompiler.h"
+
+#if UE5_1_BEYOND
+#include "SkinnedAssetCompiler.h"
+#include "Engine/SkeletalMesh.h"
+#endif
+#endif
+
 #if UE4_25_BELOW
 #include "AssetRegistryModule.h"
 #else
@@ -12,6 +22,7 @@
 #endif
 #include "VectorField/VectorFieldStatic.h"
 #include "UObject/ObjectRedirector.h"
+#include "UObject/CoreRedirects.h"
 
 #include "Utilities/ContentBrowser.h"
 #include "Utilities/Dialog.h"
@@ -20,9 +31,7 @@
 #include "UObject/SavePackage.h"
 #endif
 
-/* Follows an object redirector to whatever it points at.*/
 inline UObject* ResolveRedirector(UObject* Object) {
-	/* Redirectors chain. The cap only exists so a self referential one cannot spin forever. */
 	for (int32 Depth = 0; Depth < 16; ++Depth) {
 		const UObjectRedirector* Redirector = Cast<UObjectRedirector>(Object);
 
@@ -36,40 +45,46 @@ inline UObject* ResolveRedirector(UObject* Object) {
 	return nullptr;
 }
 
-/* Loads an asset by package path, following any redirector left behind by a rename. Every load
- * the importer does by path goes through here, so none of them can hand back a redirector.
- *
- * Null is an answer rather than a failure here: this is also how the importer asks whether an
- * asset exists yet, and most of the time it does not. Asking the loader that question costs a
- * failed package load and two warnings apiece, so the cheap answers are given first. */
 template <typename T>
-T* LoadObjectByPath(const FString& Path) {
-	/* Already in memory, including a package this session created and never saved */
+T* LoadObjectByPath(const FString& InPath) {
+	FString Path = InPath;
+
+	if (!Path.Contains(TEXT("."))) {
+		FString Named = Path;
+
+		if (Named.Split(TEXT("/"), nullptr, &Named, ESearchCase::CaseSensitive, ESearchDir::FromEnd) && !Named.IsEmpty()) {
+			Path += TEXT(".") + Named;
+		}
+	}
+
 	if (UObject* Found = FindObject<UObject>(nullptr, *Path)) {
 		return Cast<T>(ResolveRedirector(Found));
 	}
 
-	const FString PackageName = FPackageName::ObjectPathToPackageName(Path);
+	if (Path.StartsWith(TEXT("/Script/"))) {
+		const FCoreRedirectObjectName Named(Path);
 
-	/* DoesPackageExist asserts rather than answering when it dislikes what it is handed, in two
-	 * separate ways: a name holding a character a package name cannot hold trips its ensure, and
-	 * one that reads as a package but belongs to no mounted content root reaches a Fatal log
-	 * through LongPackageNameToFilename.
-	 *
-	 * IsValidLongPackageName is the same pair of questions asked in a form that answers false. It
-	 * covers the characters, '.' and ':' and '\' among them, which is what a subobject path still
-	 * carries when it gets this far, and it covers the roots. Read only roots are left out on
-	 * purpose: /Config is a valid root by that list and has no content path to resolve to, which
-	 * is the Fatal.
-	 *
-	 * Paths arrive here off Cloud responses and out of json exports, so none of this is under the
-	 * plugin's control and none of it is worth trusting. */
-	if (!FPackageName::IsValidLongPackageName(PackageName, /*bIncludeReadOnlyRoots=*/false)) {
+		for (const ECoreRedirectFlags Kind : { ECoreRedirectFlags::Type_Class, ECoreRedirectFlags::Type_Struct, ECoreRedirectFlags::Type_Enum }) {
+			const FCoreRedirectObjectName Moved = FCoreRedirects::GetRedirectedName(Kind, Named);
+
+			if (Moved == Named) {
+				continue;
+			}
+
+			if (UObject* Found = FindObject<UObject>(nullptr, *Moved.ToString())) {
+				return Cast<T>(Found);
+			}
+		}
+
 		return nullptr;
 	}
 
-	/* Not in memory and no file to read it out of, so there is nothing to load and no reason to
-	 * have the loader say so twice */
+	const FString PackageName = FPackageName::ObjectPathToPackageName(Path);
+
+	if (!FPackageName::IsValidLongPackageName(PackageName,  false)) {
+		return nullptr;
+	}
+
 	if (!FPackageName::DoesPackageExist(PackageName)) {
 		return nullptr;
 	}
@@ -79,9 +94,13 @@ T* LoadObjectByPath(const FString& Path) {
 
 inline void SavePackage(UPackage* Package) {
 	const FString PackageName = Package->GetName();
-	const FString PackageFileName = FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension());
+
+	const FString PackageFileName = FPackageName::LongPackageNameToFilename(PackageName,
+		Package->ContainsMap() ? FPackageName::GetMapPackageExtension() : FPackageName::GetAssetPackageExtension());
 
 #if ENGINE_UE5
+	Package->ClearPackageFlags(PKG_ContainsNoAsset);
+
 	FSavePackageArgs SaveArgs; {
 		SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
 		SaveArgs.Error = GError;
@@ -94,9 +113,8 @@ inline void SavePackage(UPackage* Package) {
 #endif
 }
 
-inline bool HandleAssetCreation(UObject* Asset, UPackage* Package) {
+inline bool HandleAssetCreation(UObject* Asset, UPackage* Package, const bool bBrowse = true) {
 	{
-		/* User Failsafe.... */
 		const UPackage* AssetOutermostPackage = Asset->GetOutermost();
 		const FString PackageName = AssetOutermostPackage->GetName();
 
@@ -117,16 +135,39 @@ inline bool HandleAssetCreation(UObject* Asset, UPackage* Package) {
 		VectorFieldStatic->InitResource();
 	}
 
-	Asset->PostEditChange();
+	if (!Asset->IsA<UFontFace>() || FSlateApplication::IsInitialized()) {
+		Asset->PostEditChange();
+	}
+
 	Asset->AddToRoot();
 
 	Package->FullyLoad();
 
-	BrowseToAsset(Asset);
+	if (bBrowse) BrowseToAsset(Asset);
 
 	if (UVectorFieldStatic* VectorFieldStatic = Cast<UVectorFieldStatic>(Asset)) {
 		VectorFieldStatic->Resource = nullptr;
 	}
+
+	if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(Asset)) {
+#if ENGINE_UE5
+		if (StaticMesh->IsCompiling()) {
+			FStaticMeshCompilingManager::Get().FinishCompilation({ StaticMesh });
+		}
+#endif
+
+		return true;
+	}
+
+#if UE5_1_BEYOND
+	if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Asset)) {
+		if (SkeletalMesh->IsCompiling()) {
+			FSkinnedAssetCompilingManager::Get().FinishCompilation({ SkeletalMesh });
+		}
+
+		return true;
+	}
+#endif
 
 	Asset->PostLoad();
 

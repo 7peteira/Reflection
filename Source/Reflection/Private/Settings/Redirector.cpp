@@ -1,12 +1,10 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Settings/Redirector.h"
 
 #include "Settings/ReflectionSettings.h"
 #include "Settings/Runtime.h"
 #include "Engine/EngineUtilities.h"
 
-/********* Redirect History ************ */
 TMap<FString, TArray<FRRedirectorPoint>> FRRedirects::History;
 
 bool FRRedirector::IsEnabled() const {
@@ -25,6 +23,18 @@ void FRRedirects::Clear() {
 	History.Empty();
 }
 
+static bool ReplaceFirst(FString& Path, const FString& From, const FString& To) {
+	if (From.IsEmpty()) return false;
+
+	const int32 At = Path.Find(From, ESearchCase::IgnoreCase, ESearchDir::FromStart);
+
+	if (At == INDEX_NONE) return false;
+
+	Path = Path.Left(At) + To + Path.RightChop(At + From.Len());
+
+	return true;
+}
+
 void FRRedirects::Redirect(FString& Path) {
 	TArray<FRRedirectorPoint> Points;
 
@@ -34,10 +44,8 @@ void FRRedirects::Redirect(FString& Path) {
 		if (!Redirect.IsEnabled()) continue;
 
 		for (const FRRedirectorPoint& Point : Redirect.Points) {
-			if (Path.Contains(Point.From)) {
+			if (ReplaceFirst(Path, Point.From, Point.To)) {
 				Points.Add(Point);
-				
-				Path = Path.Replace(*Point.From, *Point.To);
 			}
 		}
 	}
@@ -52,7 +60,9 @@ void FRRedirects::Reverse(FString& Path) {
 		return;
 	}
 
-	for (const FRRedirectorPoint& Point : *Points) {
-		Path = Path.Replace(*Point.To, *Point.From);
+	for (int32 At = Points->Num() - 1; At >= 0; --At) {
+		const FRRedirectorPoint& Point = (*Points)[At];
+
+		ReplaceFirst(Path, Point.To, Point.From);
 	}
 }

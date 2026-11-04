@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/Tables/StringTableImporter.h"
 
 #include "Internationalization/StringTable.h"
@@ -10,32 +9,27 @@ UObject* IStringTableImporter::CreateAsset(UObject* CreatedAsset) {
 }
 
 bool IStringTableImporter::Import() {
-	/* Create StringTable */
 	UStringTable* StringTable = Create<UStringTable>();
 
 	if (GetAssetData()->HasField(TEXT("StringTable"))) {
 		const TSharedPtr<FJsonObject> StringTableData = GetAssetData()->GetObjectField(TEXT("StringTable"));
 		const FStringTableRef MutableStringTable = StringTable->GetMutableStringTable();
 
-		/* Set Table Namespace */
 		MutableStringTable->SetNamespace(StringTableData->GetStringField(TEXT("TableNamespace")));
 
-		/* Set "SourceStrings" from KeysToEntries */
 		const TSharedPtr<FJsonObject> KeysToEntries = StringTableData->GetObjectField(TEXT("KeysToEntries"));
-	
+
 		for (const auto& Pair : KeysToEntries->Values) {
 			FString Key = JsonKeyToString(Pair.Key);
 			FString SourceString = Pair.Value->AsString();
 
 	#if UE5_8_BEYOND
-			/* 5.8 added a DevNotes parameter to the editor build's SetSourceString */
 			MutableStringTable->SetSourceString(Key, SourceString, TEXT(""));
 	#else
 			MutableStringTable->SetSourceString(Key, SourceString);
 	#endif
 		}
 
-		/* Set Metadata from KeysToMetaData */
 		const TSharedPtr<FJsonObject> KeysToMetaData = StringTableData->GetObjectField(TEXT("KeysToMetaData"));
 
 		for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : KeysToMetaData->Values) {
@@ -45,12 +39,11 @@ bool IStringTableImporter::Import() {
 			for (const TPair<FString, TSharedPtr<FJsonValue>>& MetadataPair : MetadataObject->Values) {
 				const FName TextKey = *MetadataPair.Key;
 				FString MetadataValue = MetadataPair.Value->AsString();
-			
+
 				MutableStringTable->SetMetaData(TableKey, TextKey, MetadataValue);
 			}
 		}
 	}
 
-	/* Handle edit changes, and add it to the content browser */
 	return OnAssetCreation(StringTable);
 }

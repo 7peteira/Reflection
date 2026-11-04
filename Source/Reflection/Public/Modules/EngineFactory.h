@@ -1,12 +1,9 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Factories/Factory.h"
 #include "EngineFactory.generated.h"
 
-/* Engine implementation to allow importing by dragging files into the Content Browser */
 UCLASS()
 class REFLECTION_API UREngineImplementation : public UFactory {
 	GENERATED_BODY()

@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Toolbar/Tools/ClearImportData.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Engine/FontFace.h"
@@ -29,23 +28,22 @@ void TToolClearImportData::Execute() {
 		if (!AssetData.IsValid() || !SupportedClasses.Contains(GetAssetDataClass(AssetData))) {
 			continue;
 		}
-		
+
 		UObject* Asset = AssetData.GetAsset();
 		if (Asset == nullptr) continue;
 
 		if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(Asset)) {
 			AnimSequence->AssetImportData->SourceData.SourceFiles.Empty();
-			
+
 			if (UFbxAnimSequenceImportData* FbxImportData = Cast<UFbxAnimSequenceImportData>(AnimSequence->AssetImportData)) {
 				FbxImportData->ImportUniformScale = 1.0f;
 			}
-			
+
 			AnimSequence->Modify();
 		}
 
 		if (const UStaticMesh* StaticMesh = Cast<UStaticMesh>(Asset)) {
 	#if ENGINE_UE5
-			/* UStaticMesh only grew the accessor in 5.0, unlike USkeletalMesh which has had it since 4.27 */
 			StaticMesh->GetAssetImportData()->SourceData.SourceFiles.Empty();
 	#else
 			StaticMesh->AssetImportData->SourceData.SourceFiles.Empty();

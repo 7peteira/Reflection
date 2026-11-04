@@ -1,8 +1,6 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Constructor/TemplatedImporter.h"
 
-/* Explicit instantiation of ITemplatedImporter for UObject */
 template class ITemplatedImporter<UObject>;
 
 template <typename AssetType>

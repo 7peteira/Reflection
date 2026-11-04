@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/Audio/SoundCueImporter.h"
 #include "Sound/SoundCue.h"
 #include "Utilities/JsonHelpers.h"
@@ -10,22 +9,24 @@ UObject* ISoundCueImporter::CreateAsset(UObject* CreatedAsset) {
 
 bool ISoundCueImporter::Import() {
 	USoundCue* SoundCue = Create<USoundCue>();
-	
+
+	if (!SoundCue) {
+		return false;
+	}
+
 	SoundCue->PreEditChange(nullptr);
-	
-	/* Start importing nodes ~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-	if (SoundCue) {
+
+	{
 		TMap<FString, USoundNode*> SoundCueNodes;
-		
+
 		ConstructNodes(SoundCue, SoundCueNodes);
 		SetupNodes(SoundCue, SoundCueNodes);
 	}
-	/* End of importing nodes ~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 	GetObjectSerializer()->DeserializeObjectProperties(RemovePropertiesShared(GetAssetData(), TArray<FString> {
 		"FirstNode"
 	}), SoundCue);
-	
+
 	SoundCue->PostEditChange();
 	SoundCue->CompileSoundNodesFromGraphNodes();
 

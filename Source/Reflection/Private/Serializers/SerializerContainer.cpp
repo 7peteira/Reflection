@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Serializers/SerializerContainer.h"
 
 USerializerContainer::USerializerContainer() {
@@ -9,16 +8,14 @@ USerializerContainer::USerializerContainer() {
 void USerializerContainer::Initialize(FUObjectExport* Export, FUObjectExportContainer* Container) {
 	AssetContainer = Container;
 	AssetExport = Export;
-	
-	/* Create Properties field if it doesn't exist */
-	if (!AssetExport->JsonObject->HasField(TEXT("Properties"))) {
-		AssetExport->JsonObject->SetObjectField(TEXT("Properties"), TSharedPtr<FJsonObject>());
+
+	if (!AssetExport->JsonObject->HasTypedField<EJson::Object>(TEXT("Properties"))) {
+		AssetExport->JsonObject->SetObjectField(TEXT("Properties"), MakeShared<FJsonObject>());
 	}
 
-	/* Move asset properties defined outside "Properties" and move it inside */
 	for (const auto& Pair : AssetExport->JsonObject->Values) {
 		const FString PropertyName = JsonKeyToString(Pair.Key);
-    
+
 		if (!PropertyName.Equals(TEXT("Type")) &&
 			!PropertyName.Equals(TEXT("Name")) &&
 			!PropertyName.Equals(TEXT("Class")) &&
@@ -30,15 +27,14 @@ void USerializerContainer::Initialize(FUObjectExport* Export, FUObjectExportCont
 	}
 
 	AssetExport->NameOverride = AssetExport->GetName();
-	
-	/* BlueprintGeneratedClass is post-fixed with _C */
+
 	if (AssetExport->GetType().ToString().Contains("BlueprintGeneratedClass")) {
 		FString NewName; {
 			AssetExport->NameOverride.ToString().Split("_C", &NewName, nullptr, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 			AssetExport->NameOverride = FName(*NewName);
 		}
 	}
-	
+
 	GetPropertySerializer()->ExportsContainer = AssetContainer;
 }
 
@@ -53,7 +49,7 @@ UPropertySerializer* USerializerContainer::GetPropertySerializer() const {
 void USerializerContainer::DeserializeExports(UObject* Parent, const bool CreateObjects) {
 	GetObjectSerializer()->SetExportForDeserialization(GetAssetExport(), Parent);
 	GetObjectSerializer()->Parent = Parent;
-    
+
 	GetObjectSerializer()->DeserializeExports(GetContainer(), CreateObjects);
 	ApplyModifications();
 }
@@ -63,7 +59,6 @@ void USerializerContainer::CreateSerializer() {
 	GetObjectSerializer()->SetPropertySerializer(NewObject<UPropertySerializer>());
 }
 
-/* AssetExport ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~> */
 FString USerializerContainer::GetAssetName() const {
 	return AssetExport->GetName().ToString();
 }
@@ -119,4 +114,3 @@ UPackage* USerializerContainer::GetPackage() const {
 void USerializerContainer::SetPackage(UPackage* NewPackage) {
 	AssetExport->Package = NewPackage;
 }
-/* AssetExport <~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */

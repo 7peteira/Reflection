@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/Texture/TextureFormats.h"
 
 #include "detex.h"
@@ -35,7 +34,6 @@ bool FTextureFormats::GetLayout(const EPixelFormat Format, FTextureSourceLayout&
 	OutLayout = FTextureSourceLayout();
 
 	switch (Format) {
-		/* Uncompressed, straight copy into the source buffer */
 		case PF_B8G8R8A8:
 			return true;
 
@@ -45,7 +43,6 @@ bool FTextureFormats::GetLayout(const EPixelFormat Format, FTextureSourceLayout&
 			OutLayout.BytesPerBlock = 8;
 			return true;
 
-	/* TSF_G16 arrived in 4.25, before that a 16 bit grey source has no matching source format */
 #if !UE4_24_BELOW
 		case PF_G16:
 			OutLayout.SourceFormat = TSF_G16;
@@ -54,13 +51,11 @@ bool FTextureFormats::GetLayout(const EPixelFormat Format, FTextureSourceLayout&
 			return true;
 #endif
 
-		/* Grey, one byte in and replicated out to BGRA by the decode */
 		case PF_G8:
 			OutLayout.BytesPerBlock = 1;
 			OutLayout.RequiresDecode = true;
 			return true;
 
-		/* Block compressed, 8 bytes per 4x4 block */
 		case PF_DXT1:
 		case PF_BC4:
 			OutLayout.BlockDim = 4;
@@ -68,9 +63,6 @@ bool FTextureFormats::GetLayout(const EPixelFormat Format, FTextureSourceLayout&
 			OutLayout.RequiresDecode = true;
 			return true;
 
-		/* Block compressed, 16 bytes per 4x4 block.
-		 * BC6H is HDR and decodes down to BGRA8 here, which clips it, but detex has no float
-		 * output wired up yet and a clipped texture beats no texture. */
 		case PF_DXT3:
 		case PF_DXT5:
 		case PF_BC5:
@@ -128,7 +120,6 @@ void FTextureFormats::Decode(const uint8* Data, uint8* OutData, const int32 Size
 		}
 		break;
 
-		/* Gray/Grey, not Green, typically actually uses a red format with replication of R to RGB */
 		case PF_G8: {
 			const uint8* Source = Data;
 			uint8* Destination = OutData;
@@ -144,10 +135,6 @@ void FTextureFormats::Decode(const uint8* Data, uint8* OutData, const int32 Size
 		}
 		break;
 
-		/*
-		 * FloatRGBA: 16F
-		 * G16: Gray/Grey like G8
-		*/
 		case PF_B8G8R8A8:
 		case PF_FloatRGBA:
 		case PF_G16: {

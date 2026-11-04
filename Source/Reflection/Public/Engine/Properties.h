@@ -1,5 +1,3 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
 #include "Dom/JsonObject.h"
@@ -72,7 +70,6 @@ inline EObjectFlags ParseObjectFlags(const FString& FlagsString) {
 
 		{ TEXT("RF_NeedInitialization"), RF_NeedInitialization },
 		{ TEXT("RF_NeedLoad"), RF_NeedLoad },
-	/* RF_KeepForCooker was deprecated in 5.6 */
 #if !UE5_6_BEYOND
 		{ TEXT("RF_KeepForCooker"), RF_KeepForCooker },
 #endif
@@ -90,19 +87,16 @@ inline EObjectFlags ParseObjectFlags(const FString& FlagsString) {
 		{ TEXT("RF_StrongRefOnFrame"), RF_StrongRefOnFrame },
 		{ TEXT("RF_NonPIEDuplicateTransient"), RF_NonPIEDuplicateTransient },
 		{ TEXT("RF_WillBeLoaded"), RF_WillBeLoaded },
-		/* External packages, and the flag that marks them, arrived in 4.26 */
 #if !UE4_25_BELOW
 		{ TEXT("RF_HasExternalPackage"), RF_HasExternalPackage },
 #endif
 #if ENGINE_UE5
-	/* RF_HasPlaceholderType arrived in 5.4 and was removed in 5.8; RF_MirroredGarbage is 5.4+ */
 #if ENGINE_MINOR_VERSION > 3 && ENGINE_MINOR_VERSION < 8
 		{ TEXT("RF_HasPlaceholderType"), RF_HasPlaceholderType },
 #endif
 #if ENGINE_MINOR_VERSION > 3
 		{ TEXT("RF_MirroredGarbage"), RF_MirroredGarbage },
 #endif
-	/* RF_AllocatedInSharedPage was deprecated in 5.8; its bit was reassigned to RF_HasDynamicImports */
 #if !UE5_8_BEYOND
 		{ TEXT("RF_AllocatedInSharedPage"), RF_AllocatedInSharedPage }
 #endif

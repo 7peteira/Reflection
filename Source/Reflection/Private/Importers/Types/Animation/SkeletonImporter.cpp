@@ -1,6 +1,4 @@
-
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/Animation/SkeletonImporter.h"
 
 #if ENGINE_UE4
@@ -8,295 +6,211 @@
 #endif
 
 UObject* ISkeletonImporter::CreateAsset(UObject* CreatedAsset) {
-    return IImporter::CreateAsset(NewObject<USkeleton>(
-        GetPackage(),
-        USkeleton::StaticClass(),
-        *GetAssetName(),
-        RF_Public | RF_Standalone
-    ));
+	return IImporter::CreateAsset(NewObject<USkeleton>(GetPackage(), USkeleton::StaticClass(), *GetAssetName(), RF_Public | RF_Standalone));
 }
 
 bool ISkeletonImporter::Import() {
-    USkeleton* Skeleton = GetSelectedAsset<USkeleton>(true);
+	USkeleton* Skeleton = GetSelectedAsset<USkeleton>(true);
 
-    /* If the user selected an asset, and it's a different name from the asset, don't import it to it */
-    if (Skeleton) {
-        if (Skeleton->GetName() != GetAssetName()) {
-            Skeleton = nullptr;
-        }
-    }
+	if (Skeleton) {
+		if (Skeleton->GetName() != GetAssetName()) {
+			Skeleton = nullptr;
+		}
+	}
 
-    /* If there is no skeleton, create one. */
-    if (!Skeleton) {
-        Skeleton = Create<USkeleton>();
+	if (!Skeleton) {
+		Skeleton = Create<USkeleton>();
 
-        ApplySkeletalChanges(Skeleton);
-    } else {
-        /* Empty the skeleton's sockets, blend profiles, and virtual bones */
-        Skeleton->Sockets.Empty();
-        Skeleton->BlendProfiles.Empty();
+		ApplySkeletalChanges(Skeleton);
+	} else {
+		Skeleton->Sockets.Empty();
+		Skeleton->BlendProfiles.Empty();
 
-        TArray<FName> VirtualBoneNames;
+		TArray<FName> VirtualBoneNames;
 
-        for (const FVirtualBone VirtualBone : Skeleton->GetVirtualBones()) {
-            VirtualBoneNames.Add(VirtualBone.VirtualBoneName);
-        }
+		for (const FVirtualBone VirtualBone : Skeleton->GetVirtualBones()) {
+			VirtualBoneNames.Add(VirtualBone.VirtualBoneName);
+		}
 
-        Skeleton->RemoveVirtualBones(VirtualBoneNames);
-        Skeleton->AnimRetargetSources.Empty();
-    }
+		Skeleton->RemoveVirtualBones(VirtualBoneNames);
+		Skeleton->AnimRetargetSources.Empty();
 
-    /* Deserialize Skeleton */
-    DeserializeExports(Skeleton);
-    GetObjectSerializer()->DeserializeObjectProperties(GetAssetData(), Skeleton);
+		ApplySkeletalChanges(Skeleton);
+	}
 
-    ApplySkeletalAssetData(Skeleton);
+	DeserializeExports(Skeleton);
+	GetObjectSerializer()->DeserializeObjectProperties(GetAssetData(), Skeleton);
 
-    return OnAssetCreation(Skeleton);
+	ApplySkeletalAssetData(Skeleton);
+
+	return OnAssetCreation(Skeleton);
 }
 
-void ISkeletonImporter::DeserializeCurveMetaData(
-    FCurveMetaData* OutMeta,
-    const TSharedPtr<FJsonObject>& Json) const
-{
+void ISkeletonImporter::DeserializeCurveMetaData(FCurveMetaData* OutMeta, const TSharedPtr<FJsonObject>& Json) const {
 #if ENGINE_UE4
-    /* Untested in UE5 */
+	if (const TArray<TSharedPtr<FJsonValue>>* Bones = nullptr; Json->TryGetArrayField(TEXT("LinkedBones"), Bones)) {
+		for (const auto& BoneVal : *Bones) {
+			if (auto BoneObj = BoneVal->AsObject()) {
+				FBoneReference Bone;
+				GetPropertySerializer()->DeserializeStruct(TBaseStructure<FBoneReference>::Get(), BoneObj.ToSharedRef(), &Bone);
+				OutMeta->LinkedBones.Add(MoveTemp(Bone));
+			}
+		}
+	}
 
-    /* UE4.23 compatibility: declare Bones before the if statement */
-    const TArray<TSharedPtr<FJsonValue>>* Bones = nullptr;
+	OutMeta->MaxLOD = Json->GetNumberField(TEXT("MaxLOD"));
 
-    if (Json->TryGetArrayField(TEXT("LinkedBones"), Bones)) {
-        for (const auto& BoneVal : *Bones) {
-            if (auto BoneObj = BoneVal->AsObject()) {
-                FBoneReference Bone;
-
-                GetPropertySerializer()->DeserializeStruct(
-                    TBaseStructure<FBoneReference>::Get(),
-                    BoneObj.ToSharedRef(),
-                    &Bone
-                );
-
-                OutMeta->LinkedBones.Add(MoveTemp(Bone));
-            }
-        }
-    }
-
-    OutMeta->MaxLOD = Json->GetNumberField(TEXT("MaxLOD"));
-
-    /* UE4.23 compatibility: declare TypeObj before the if statement */
-    const TSharedPtr<FJsonObject>* TypeObj = nullptr;
-
-    if (Json->TryGetObjectField(TEXT("Type"), TypeObj)) {
-        FAnimCurveType& Type = OutMeta->Type;
-
-        (*TypeObj)->TryGetBoolField(TEXT("bMaterial"), Type.bMaterial);
-        (*TypeObj)->TryGetBoolField(TEXT("bMorphtarget"), Type.bMorphtarget);
-    }
+	if (const TSharedPtr<FJsonObject>* TypeObj; Json->TryGetObjectField(TEXT("Type"), TypeObj)) {
+		FAnimCurveType& Type = OutMeta->Type;
+		(*TypeObj)->TryGetBoolField(TEXT("bMaterial"), Type.bMaterial);
+		(*TypeObj)->TryGetBoolField(TEXT("bMorphtarget"), Type.bMorphtarget);
+	}
 #endif
 }
 
 void ISkeletonImporter::ApplyModifications() {
-    IImporter::ApplyModifications();
+	IImporter::ApplyModifications();
 
 #if ENGINE_UE4
-    /* If this export is found, this means the data is from UE5, and since we're on UE4, we need to move this into where it would be in UE4 */
-    const FUObjectExport* AnimCurveMetaData =
-        GetContainer()->FindByType(FString("AnimCurveMetaData"));
+	const FUObjectExport* AnimCurveMetaData = GetContainer()->FindByType(FString("AnimCurveMetaData"));
 
-    if (AnimCurveMetaData->IsJsonValid()) {
-        const TSharedPtr<FJsonObject> CurveMetaDataProperties =
-            AnimCurveMetaData->GetProperties();
+	if (AnimCurveMetaData->IsJsonValid()) {
+		const TSharedPtr<FJsonObject> CurveMetaDataProperties = AnimCurveMetaData->GetProperties();
 
-        if (CurveMetaDataProperties->HasField(TEXT("CurveMetaData"))) {
-            const TArray<TSharedPtr<FJsonValue>> CurveMetaData =
-                CurveMetaDataProperties->GetArrayField(TEXT("CurveMetaData"));
+		if (CurveMetaDataProperties->HasField(TEXT("CurveMetaData"))) {
+			const TArray<TSharedPtr<FJsonValue>> CurveMetaData = CurveMetaDataProperties->GetArrayField(TEXT("CurveMetaData"));
 
-            FJsonObject* NameMappings = EnsureObjectField(GetAssetData(), "NameMappings");
-            FJsonObject* AnimationCurves = EnsureObjectField(NameMappings, "AnimationCurves");
+			FJsonObject* NameMappings = EnsureObjectField(GetAssetData(), "NameMappings");
+			FJsonObject* AnimationCurves = EnsureObjectField(NameMappings, "AnimationCurves");
+			AnimationCurves->SetField("GuidMap", nullptr);
+			AnimationCurves->SetField("UidMap", nullptr);
 
-            AnimationCurves->SetField("GuidMap", nullptr);
-            AnimationCurves->SetField("UidMap", nullptr);
+			FJsonObject* CurveMetaDataMap = EnsureObjectField(AnimationCurves, "CurveMetaDataMap");
 
-            FJsonObject* CurveMetaDataMap =
-                EnsureObjectField(AnimationCurves, "CurveMetaDataMap");
+			ProcessJsonArrayField(CurveMetaDataProperties, TEXT("CurveMetaData"), [&](const TSharedPtr<FJsonObject>& ObjectField) {
+				const FString Key = ObjectField->GetStringField(TEXT("Key"));
+				const TSharedPtr<FJsonObject> Value = ObjectField->GetObjectField(TEXT("Value"));
 
-            ProcessJsonArrayField(
-                CurveMetaDataProperties,
-                TEXT("CurveMetaData"),
-                [&](const TSharedPtr<FJsonObject>& ObjectField) {
-                    const FString Key = ObjectField->GetStringField(TEXT("Key"));
-                    const TSharedPtr<FJsonObject> Value =
-                        ObjectField->GetObjectField(TEXT("Value"));
-
-                    CurveMetaDataMap->SetObjectField(Key, Value);
-                }
-            );
-        }
-    }
+				CurveMetaDataMap->SetObjectField(Key, Value);
+			});
+		}
+	}
 #endif
 }
 
 void ISkeletonImporter::ApplySkeletalChanges(USkeleton* Skeleton) const {
-    const TSharedPtr<FJsonObject> ReferenceSkeletonObject =
-        GetAssetData()->GetObjectField(TEXT("ReferenceSkeleton"));
+	const TSharedPtr<FJsonObject> ReferenceSkeletonObject = GetAssetData()->GetObjectField(TEXT("ReferenceSkeleton"));
 
-    /* Get access to ReferenceSkeleton */
-    FReferenceSkeleton& ReferenceSkeleton =
-        const_cast<FReferenceSkeleton&>(Skeleton->GetReferenceSkeleton());
+	FReferenceSkeleton& ReferenceSkeleton = const_cast<FReferenceSkeleton&>(Skeleton->GetReferenceSkeleton());
+	FReferenceSkeletonModifier ReferenceSkeletonModifier(ReferenceSkeleton, Skeleton);
 
-    FReferenceSkeletonModifier ReferenceSkeletonModifier(ReferenceSkeleton, Skeleton);
+	TArray<TSharedPtr<FJsonValue>> FinalRefBoneInfo = ReferenceSkeletonObject->GetArrayField(TEXT("FinalRefBoneInfo"));
+	TArray<TSharedPtr<FJsonValue>> FinalRefBonePose = ReferenceSkeletonObject->GetArrayField(TEXT("FinalRefBonePose"));
 
-    TArray<TSharedPtr<FJsonValue>> FinalRefBoneInfo =
-        ReferenceSkeletonObject->GetArrayField(TEXT("FinalRefBoneInfo"));
+	TArray<FName> ExportBoneNames;
 
-    TArray<TSharedPtr<FJsonValue>> FinalRefBonePose =
-        ReferenceSkeletonObject->GetArrayField(TEXT("FinalRefBonePose"));
+	for (const auto& FinalReferenceBoneInfoValue : FinalRefBoneInfo) {
+		ExportBoneNames.Add(FName(*FinalReferenceBoneInfoValue->AsObject()->GetStringField(TEXT("Name"))));
+	}
 
-    int BoneIndex = 0;
+	for (int BoneIndex = 0; BoneIndex < FinalRefBoneInfo.Num(); BoneIndex++) {
+		const TSharedPtr<FJsonObject> FinalReferenceBoneInfo = FinalRefBoneInfo[BoneIndex]->AsObject();
 
-    /* Go through each bone reference */
-    for (const auto& FinalReferenceBoneInfoValue : FinalRefBoneInfo) {
-        const TSharedPtr<FJsonObject> FinalReferenceBoneInfo =
-            FinalReferenceBoneInfoValue->AsObject();
+		const FName Name = ExportBoneNames[BoneIndex];
+		const int ExportParentIndex = FinalReferenceBoneInfo->GetIntegerField(TEXT("ParentIndex"));
 
-        FName Name(*FinalReferenceBoneInfo->GetStringField(TEXT("Name")));
-        const int ParentIndex =
-            FinalReferenceBoneInfo->GetIntegerField(TEXT("ParentIndex"));
+		if (ReferenceSkeleton.FindRawBoneIndex(Name) != INDEX_NONE) {
+			continue;
+		}
 
-        /* Fail-safe */
-        if (!FinalRefBonePose.IsValidIndex(BoneIndex) ||
-            !FinalRefBonePose[BoneIndex].IsValid()) {
-            continue;
-        }
+		if (!FinalRefBonePose.IsValidIndex(BoneIndex) || !FinalRefBonePose[BoneIndex].IsValid()) {
+			continue;
+		}
 
-        TSharedPtr<FJsonObject> BonePoseTransform =
-            FinalRefBonePose[BoneIndex]->AsObject();
+		int ParentIndex = INDEX_NONE;
 
-        FTransform Transform;
-        {
-            GetPropertySerializer()->DeserializeStruct(
-                TBaseStructure<FTransform>::Get(),
-                BonePoseTransform.ToSharedRef(),
-                &Transform
-            );
-        }
+		if (ExportBoneNames.IsValidIndex(ExportParentIndex)) {
+			ParentIndex = ReferenceSkeleton.FindRawBoneIndex(ExportBoneNames[ExportParentIndex]);
 
-        FMeshBoneInfo MeshBoneInfo(Name, "", ParentIndex);
+			if (ParentIndex == INDEX_NONE) {
+				continue;
+			}
+		}
 
-        /* Add the bone */
-        ReferenceSkeletonModifier.Add(MeshBoneInfo, Transform);
+		TSharedPtr<FJsonObject> BonePoseTransform = FinalRefBonePose[BoneIndex]->AsObject();
+		FTransform Transform; {
+			GetPropertySerializer()->DeserializeStruct(TBaseStructure<FTransform>::Get(), BonePoseTransform.ToSharedRef(), &Transform);
+		}
 
-        BoneIndex++;
-    }
+		FMeshBoneInfo MeshBoneInfo = FMeshBoneInfo(Name, "", ParentIndex);
 
-    /* Re-build skeleton */
-    ReferenceSkeleton.RebuildRefSkeleton(Skeleton, true);
+		ReferenceSkeletonModifier.Add(MeshBoneInfo, Transform);
+	}
 
-    Skeleton->ClearCacheData();
-    Skeleton->MarkPackageDirty();
+	ReferenceSkeleton.RebuildRefSkeleton(Skeleton, true);
+
+	Skeleton->ClearCacheData();
+	Skeleton->MarkPackageDirty();
 }
 
 void ISkeletonImporter::ApplySkeletalAssetData(USkeleton* Skeleton) const {
-    /* AnimationCurves ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 #if ENGINE_UE4
-    if (GetAssetData()->HasField("NameMappings")
-        && GetAssetData()->GetObjectField("NameMappings")->Values.Num() > 0
-        && GetAssetData()->GetObjectField("NameMappings")->HasField(TEXT("AnimationCurves"))
-        && GetAssetData()->GetObjectField("NameMappings")->GetObjectField(TEXT("AnimationCurves"))->HasField(TEXT("CurveMetaDataMap"))) {
+	if (GetAssetData()->HasField("NameMappings")
+		&& GetAssetData()->GetObjectField("NameMappings")->Values.Num() > 0
+		&& GetAssetData()->GetObjectField("NameMappings")->HasField(TEXT("AnimationCurves"))
+		&& GetAssetData()->GetObjectField("NameMappings")->GetObjectField(TEXT("AnimationCurves"))->HasField(TEXT("CurveMetaDataMap"))) {
 
-        TSharedPtr<FJsonObject> NameMappings =
-            GetAssetData()->GetObjectField("NameMappings");
+		TSharedPtr<FJsonObject> NameMappings = GetAssetData()->GetObjectField("NameMappings");
+		TSharedPtr<FJsonObject> AnimationCurves = NameMappings->GetObjectField("AnimationCurves");
+		TSharedPtr<FJsonObject> CurveMetaDataMap = AnimationCurves->GetObjectField("CurveMetaDataMap");
 
-        TSharedPtr<FJsonObject> AnimationCurves =
-            NameMappings->GetObjectField("AnimationCurves");
+		ProcessObjects(CurveMetaDataMap, [&](const FString& Name, const TSharedPtr<FJsonObject>& Object) {
+			FSmartName NewTrackName;
 
-        TSharedPtr<FJsonObject> CurveMetaDataMap =
-            AnimationCurves->GetObjectField("CurveMetaDataMap");
+			Skeleton->AddSmartNameAndModify(USkeleton::AnimCurveMappingName, FName(*Name), NewTrackName);
+			ensureAlways(Skeleton->GetSmartNameByUID(USkeleton::AnimCurveMappingName, NewTrackName.UID, NewTrackName));
+			FCurveMetaData* CurveMetaData = Skeleton->GetCurveMetaData(FName(*Name));
 
-        ProcessObjects(
-            CurveMetaDataMap,
-            [&](const FString& Name, const TSharedPtr<FJsonObject>& Object) {
-                FSmartName NewTrackName;
-
-                Skeleton->AddSmartNameAndModify(
-                    USkeleton::AnimCurveMappingName,
-                    FName(*Name),
-                    NewTrackName
-                );
-
-                ensureAlways(
-                    Skeleton->GetSmartNameByUID(
-                        USkeleton::AnimCurveMappingName,
-                        NewTrackName.UID,
-                        NewTrackName
-                    )
-                );
-
-                FCurveMetaData* CurveMetaData =
-                    Skeleton->GetCurveMetaData(FName(*Name));
-
-                DeserializeCurveMetaData(CurveMetaData, Object);
-            }
-        );
-    }
+			DeserializeCurveMetaData(CurveMetaData, Object);
+		});
+	}
 #endif
 
-    /* AnimRetargetSources ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-    const TSharedPtr<FJsonObject> AnimRetargetSources =
-        GetAssetData()->GetObjectField(TEXT("AnimRetargetSources"));
+	const TSharedPtr<FJsonObject> AnimRetargetSources = GetAssetData()->GetObjectField(TEXT("AnimRetargetSources"));
 
-    for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : AnimRetargetSources->Values) {
-        const FName KeyName(*Pair.Key);
+	for (const TPair<FString, TSharedPtr<FJsonValue>>& Pair : AnimRetargetSources->Values) {
+		const FName KeyName = FName(*Pair.Key);
+		const TSharedPtr<FJsonObject> RetargetObject = Pair.Value->AsObject();
 
-        const TSharedPtr<FJsonObject> RetargetObject =
-            Pair.Value->AsObject();
+		const FName PoseName(*RetargetObject->GetStringField(TEXT("PoseName")));
 
-        const FName PoseName(
-            *RetargetObject->GetStringField(TEXT("PoseName"))
-        );
+		TArray<FTransform> ReferencePose;
 
-        /* Array of transforms for each bone */
-        TArray<FTransform> ReferencePose;
+		TArray<TSharedPtr<FJsonValue>> ReferencePoseArray = RetargetObject->GetArrayField(TEXT("ReferencePose"));
 
-        /* Add transforms for each bone */
-        TArray<TSharedPtr<FJsonValue>> ReferencePoseArray =
-            RetargetObject->GetArrayField(TEXT("ReferencePose"));
+		for (TSharedPtr<FJsonValue> ReferencePoseTransformValue : ReferencePoseArray) {
+			TSharedPtr<FJsonObject> ReferencePoseObject = ReferencePoseTransformValue->AsObject();
 
-        for (TSharedPtr<FJsonValue> ReferencePoseTransformValue : ReferencePoseArray) {
-            TSharedPtr<FJsonObject> ReferencePoseObject =
-                ReferencePoseTransformValue->AsObject();
+			FTransform Transform; {
+				GetPropertySerializer()->DeserializeStruct(TBaseStructure<FTransform>::Get(), ReferencePoseObject.ToSharedRef(), &Transform);
+			}
 
-            FTransform Transform;
-            {
-                GetPropertySerializer()->DeserializeStruct(
-                    TBaseStructure<FTransform>::Get(),
-                    ReferencePoseObject.ToSharedRef(),
-                    &Transform
-                );
-            }
+			ReferencePose.Add(Transform);
+		}
 
-            ReferencePose.Add(Transform);
-        }
+		FReferencePose RetargetSource;
+		RetargetSource.ReferencePose = ReferencePose;
+		RetargetSource.PoseName = PoseName;
 
-        /* Create reference pose */
-        FReferencePose RetargetSource;
+		Skeleton->AnimRetargetSources.Add(KeyName, RetargetSource);
+	}
 
-        RetargetSource.ReferencePose = ReferencePose;
-        RetargetSource.PoseName = PoseName;
-
-        Skeleton->AnimRetargetSources.Add(KeyName, RetargetSource);
-    }
-
-    RebuildSkeleton(Skeleton);
+	RebuildSkeleton(Skeleton);
 }
 
 void ISkeletonImporter::RebuildSkeleton(const USkeleton* Skeleton) {
-    /* Get access to ReferenceSkeleton */
-    FReferenceSkeleton& ReferenceSkeleton =
-        const_cast<FReferenceSkeleton&>(Skeleton->GetReferenceSkeleton());
+	FReferenceSkeleton& ReferenceSkeleton = const_cast<FReferenceSkeleton&>(Skeleton->GetReferenceSkeleton());
+	FReferenceSkeletonModifier ReferenceSkeletonModifier(ReferenceSkeleton, Skeleton);
 
-    FReferenceSkeletonModifier ReferenceSkeletonModifier(ReferenceSkeleton, Skeleton);
-
-    /* Re-build skeleton */
-    ReferenceSkeleton.RebuildRefSkeleton(Skeleton, true);
+	ReferenceSkeleton.RebuildRefSkeleton(Skeleton, true);
 }

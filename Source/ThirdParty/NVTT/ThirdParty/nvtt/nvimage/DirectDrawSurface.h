@@ -171,22 +171,22 @@ namespace nv {
 
 
 		// Helper methods.
-		DDSHeader();
+		NVTT_API DDSHeader();
 
-		void setWidth(uint w);
-		void setHeight(uint h);
-		void setDepth(uint d);
+		NVTT_API void setWidth(uint w);
+		NVTT_API void setHeight(uint h);
+		NVTT_API void setDepth(uint d);
 		void setMipmapCount(uint count);
 		void setTexture2D();
 		void setTexture3D();
-		void setTextureCube();
+		NVTT_API void setTextureCube();
 		void setLinearSize(uint size);
 		void setPitch(uint pitch);
-		void setFourCC(uint32 FourCC);
+		NVTT_API void setFourCC(uint32 FourCC);
 		void setFourCC(uint8 c0, uint8 c1, uint8 c2, uint8 c3);
 		void setPixelFormat(uint bitcount, uint rmask, uint gmask, uint bmask, uint amask);
 		void setDX10Format(uint format);
-		void setNormalFlag(bool b);
+		NVTT_API void setNormalFlag(bool b);
 
 		void swapBytes();
 
@@ -199,9 +199,9 @@ namespace nv {
 	/// DirectDraw Surface. (DDS)
 	class NVIMAGE_CLASS DirectDrawSurface {
 	public:
-		DirectDrawSurface(const char* file);
-		DirectDrawSurface(Stream* stream); // added implicit stream version, like in recent NVTT code
-		~DirectDrawSurface();
+		NVTT_API DirectDrawSurface(const char* file);
+		NVTT_API DirectDrawSurface(Stream* stream); // added implicit stream version, like in recent NVTT code
+		NVTT_API ~DirectDrawSurface();
 
 		bool isValid() const;
 		bool isSupported() const;
@@ -217,7 +217,7 @@ namespace nv {
 
 		void setNormalFlag(bool b);
 
-		void mipmap(Image* img, uint f, uint m);
+		NVTT_API void mipmap(Image* img, uint f, uint m);
 		//	void mipmap(FloatImage * img, uint f, uint m);
 
 		void printInfo() const;

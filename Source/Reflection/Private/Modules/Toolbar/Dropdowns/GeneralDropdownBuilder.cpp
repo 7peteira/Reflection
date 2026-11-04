@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Toolbar/Dropdowns/GeneralDropdownBuilder.h"
 
 #include "Engine/Compatibility.h"

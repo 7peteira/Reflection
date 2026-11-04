@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/UserDefined/UserDefinedEnumImporter.h"
 
 #include "Engine/UserDefinedEnum.h"
@@ -10,53 +9,41 @@ UObject* IUserDefinedEnumImporter::CreateAsset(UObject* CreatedAsset) {
 }
 
 bool IUserDefinedEnumImporter::Import() {
-	/* Create the UserDefinedEnum */
 	UUserDefinedEnum* UserDefinedEnum = Create<UUserDefinedEnum>();
-	
+
 	UserDefinedEnum->SetMetaData(TEXT("BlueprintType"), TEXT("true"));
 	UserDefinedEnum->Modify();
 
-	/* CppForm ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	UEnum::ECppForm CppForm = UEnum::ECppForm::Regular;
 
 	if (GetAssetData()->HasField(TEXT("CppForm"))) {
 		const FString CppForm_String = GetAssetData()->GetStringField(TEXT("CppForm"));
 
-		/*
-		 * Selector based on text
-		 * Seems like we can't use the normal EnumAsString because of some access error
-		 */
 		CppForm = CppForm_String == "Regular" ? UEnum::ECppForm::Regular : CppForm_String == "Namespaced" ? UEnum::ECppForm::Namespaced : UEnum::ECppForm::EnumClass;
 	}
 
-	/* EnumNames ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	if (GetAssetData()->HasTypedField<EJson::Object>(TEXT("Names"))) {
 		const TSharedPtr<FJsonObject> Names = GetAssetData()->GetObjectField(TEXT("Names"));
 
-		/* Final EnumNames variable */
 		TArray<TPair<FName, int64>> EnumNames;
 
 		int32 EntryCount = Names->Values.Num();
-		
+
 		for (const auto& Pair : Names->Values) {
-			/* Last entry is the _MAX name, automatically created by the engine */
 			if (--EntryCount == 0) break;
 
 			EnumNames.Emplace(FName(*Pair.Key), static_cast<int64>(Pair.Value->AsNumber()));
 		}
 
-		/* Update the enumeration with the enum names */
 		UserDefinedEnum->SetEnums(EnumNames, CppForm
 	#if UE5_8_BEYOND
-			/* 5.8 added UEnum::EUnderlyingType and replaced the bool with UEnum::EAddMaxKeyIfMissing */
 			, UEnum::EUnderlyingType::int32, EEnumFlags::None, UEnum::EAddMaxKeyIfMissing::Yes
 	#elif ENGINE_UE5 || ((ENGINE_UE4 && ENGINE_MINOR_VERSION >= 26) && !(ENGINE_MINOR_VERSION == 26 && ENGINE_PATCH_VERSION == 0))
 			, EEnumFlags::None, true
 	#endif
 		);
 	}
-	
-	/* DisplayNameMap ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+
 	TArray<TSharedPtr<FJsonValue>> DisplayNameMap = GetAssetData()->GetArrayField(TEXT("DisplayNameMap"));
 	TMap<FName, FText> DisplayNames;
 
@@ -71,7 +58,6 @@ bool IUserDefinedEnumImporter::Import() {
 			if (!ValueObject.IsValid()) continue;
 		}
 
-		/* Retrieve properties */
 		FName EnumKey = *EntryObject->GetStringField(TEXT("Key"));
 		FString TextNamespace = ValueObject->GetStringField(TEXT("Namespace"));
 		FString UniqueKey = ValueObject->GetStringField(TEXT("Key"));
@@ -80,9 +66,7 @@ bool IUserDefinedEnumImporter::Import() {
 		if (ValueObject->HasField(TEXT("CultureInvariantString"))) {
 			DisplayNames.Add(EnumKey, FText::FromString(*ValueObject->GetStringField(TEXT("CultureInvariantString"))));
 		} else {
-			/* TODO: Add LocalizedString */
 	#if UE5_8_BEYOND
-			/* ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText was removed in 5.8 */
 			DisplayNames.Add(EnumKey, FText::FromString(SourceString));
 	#else
 			DisplayNames.Add(EnumKey, FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*SourceString, *TextNamespace, *UniqueKey));
@@ -90,17 +74,14 @@ bool IUserDefinedEnumImporter::Import() {
 		}
 	}
 
-	/* Set Display Names in the UserDefinedEnum */
 	for (const auto& Pair : DisplayNames) {
 		UserDefinedEnum->DisplayNameMap.Add(Pair.Key, Pair.Value);
 	}
 
-	/* Finalization ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	UserDefinedEnum->Modify();
 	UserDefinedEnum->PostEditChange();
 
 	FEnumEditorUtils::EnsureAllDisplayNamesExist(UserDefinedEnum);
 
-	/* Handle edit changes, and add it to the content browser */
 	return OnAssetCreation(UserDefinedEnum);
 }

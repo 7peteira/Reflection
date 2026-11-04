@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Cloud/Tools/WidgetAnimations.h"
 #include "WidgetBlueprint.h"
 #include "Animation/WidgetAnimation.h"
@@ -18,8 +17,6 @@ void TWidgetAnimations::Process(UObject* Object, const TArray<TSharedPtr<FJsonVa
 	UWidgetBlueprintGeneratedClass* GeneratedClass = Cast<UWidgetBlueprintGeneratedClass>(WidgetBlueprint->GeneratedClass);
 	if (!GeneratedClass) return;
 
-	/* Empty all animations. Only once the Cloud has come back with something to replace them
-	 * with, so a failed request leaves the asset alone. */
 	for (UObject* Animation : WidgetBlueprint->Animations) {
 		MoveToTransientPackageAndRename(Animation);
 	}

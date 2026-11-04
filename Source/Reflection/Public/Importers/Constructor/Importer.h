@@ -1,38 +1,85 @@
-
-/* Copyright Reflection Contributors 2024-2026 */
-
 #pragma once
 
+#include "Importers/Types/Texture/TextureTypes.h"
+
 #include "Engine/Compatibility.h"
+#include "UObject/MetaData.h"
 #include "Dom/JsonObject.h"
 #include "CoreMinimal.h"
 #include "Serializers/SerializerContainer.h"
 
-/* ReSharper disable once CppUnusedIncludeDirective */
 #include "Macros.h"
 
-/* ReSharper disable once CppUnusedIncludeDirective */
 #include "TypesHelper.h"
 
 #include "Registry/RegistrationInfo.h"
+#include "ImportIssues.h"
 #include "Styling/SlateIconFinder.h"
 #include "Importers/Constructor/Asset.h"
 #include "Engine/Package.h"
 #include "Utilities/AssetPaths.h"
+#include "Misc/PackageName.h"
+#include "Misc/Paths.h"
 
-/* Base handler for converting JSON to assets */
+#if UE4_26
+#include "UObject/MetaData.h"
+#endif
+
+inline bool PackageFileOf(const FString& LongPackageName, FString& OutFilename) {
+#if ENGINE_UE5
+	return FPackageName::DoesPackageExist(LongPackageName, &OutFilename);
+#else
+	return FPackageName::DoesPackageExist(LongPackageName, nullptr, &OutFilename);
+#endif
+}
+
+inline bool PackageHoldsAsset(const FString& LongPackageName) {
+	FString Held;
+
+	if (!PackageFileOf(LongPackageName, Held)) return false;
+
+	if (const UPackage* Standing = FindPackage(nullptr, *LongPackageName)) {
+		TArray<UObject*> Inside;
+		GetObjectsWithOuter(Standing, Inside, false);
+
+		for (const UObject* One : Inside) {
+			if (One == nullptr) continue;
+
+#if !UE5_6_BEYOND
+			if (One->IsA<UMetaData>()) continue;
+#endif
+
+			return true;
+		}
+
+		return false;
+	}
+
+	IAssetRegistry& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+
+	TArray<FAssetData> Found;
+	Registry.GetAssetsByPackageName(*LongPackageName, Found, true);
+
+	if (Found.Num() > 0) return true;
+
+	Registry.ScanFilesSynchronous({ Held }, true);
+	Registry.GetAssetsByPackageName(*LongPackageName, Found, true);
+
+	return Found.Num() > 0;
+}
+
 class REFLECTION_API IImporter : public USerializerContainer {
 public:
-    /* Constructors ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
     IImporter() {}
 
     virtual ~IImporter() override {}
 
 public:
-    /* Overriden in child classes, returns false if failed. */
     virtual bool Import() {
         return false;
     }
+
+    virtual void Validate(UObject* Asset) const {}
 
     virtual UObject* CreateAsset(UObject* CreatedAsset = nullptr);
 
@@ -44,55 +91,31 @@ public:
     }
 
 public:
-    /* Loads a single <T> object ptr */
     template<class T = UObject>
     void LoadExport(const TSharedPtr<FJsonObject>* PackageIndex, TObjectPtr<T>& Object);
 
-    /* Loads an array of <T> object ptrs */
     template<class T = UObject>
-    TArray<TObjectPtr<T>> LoadExport(
-        const TArray<TSharedPtr<FJsonValue>>& PackageArray,
-        TArray<TObjectPtr<T>> Array
-    );
+    TArray<TObjectPtr<T>> LoadExport(const TArray<TSharedPtr<FJsonValue>>& PackageArray, TArray<TObjectPtr<T>> Array);
 
 public:
     void Save() const;
 
-    /*
-     * Handle edit changes, and add it to the content browser
-     */
     bool OnAssetCreation(UObject* Asset) const;
 
-    /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Object Serializer and Property Serializer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 public:
-    /* Function to check if an asset needs to be imported. Once imported, the asset will be set and returned. */
     template <class T = UObject>
-    FORCEINLINE static TObjectPtr<T> DownloadWrapper(
-        TObjectPtr<T> InObject,
-        FString Type,
-        const FString Name,
-        const FString Path
-    );
-
-    /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Object Serializer and Property Serializer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+    FORCEINLINE static TObjectPtr<T> DownloadWrapper(TObjectPtr<T> InObject, FString Type, const FString Name, const FString Path, const FString Lands = FString(), const FString Within = FString());
 };
 
-/* Defined in headers due to symbol errors */
 template <class T>
-TObjectPtr<T> IImporter::DownloadWrapper(
-    TObjectPtr<T> InObject,
-    FString Type,
-    const FString Name,
-    const FString Path
-) {
+TObjectPtr<T> IImporter::DownloadWrapper(TObjectPtr<T> InObject, FString Type, const FString Name, const FString Path, const FString Lands, const FString Within) {
     const UReflectionSettings* Settings = GetSettings();
 
     if ((
         InObject == nullptr ||
-        (Settings->AssetSettings.Texture.ReflectExistingTextures && Type == "Texture2D")
-    )
-        && !Path.StartsWith("Engine/")
-        && !Path.StartsWith("/Engine/")
+            (Settings->AssetSettings.Texture.ReflectExistingTextures && Type == "Texture2D")
+        )
+        && !Path.StartsWith("Engine/") && !Path.StartsWith("/Engine/")
     ) {
         const UObject* DefaultObject = GetClassDefaultObject(T::StaticClass());
 
@@ -102,43 +125,43 @@ TObjectPtr<T> IImporter::DownloadWrapper(
             FString NewPath = Path;
             FRRedirects::Reverse(NewPath);
 
-            /* Try importing the asset */
-            if (FAssetUtilities::ConstructAsset(
-                FSoftObjectPath(Type + "'" + NewPath + "." + Name + "'").ToString(),
-                FSoftObjectPath(Type + "'" + NewPath + "." + Name + "'").ToString(),
-                Type,
-                InObject,
-                DownloadStatus
-            )) {
-                const FText AssetNameText = FText::FromString(Name);
+            const FString Reflected = Type + TEXT("'") + NewPath + TEXT(".") + Name + TEXT("'");
 
-                const FSlateBrush* IconBrush =
-                    FSlateIconFinder::FindCustomIconBrushForClass(
-                        FindObject<UClass>(nullptr, *("/Script/Engine." + Type)),
-                        TEXT("ClassThumbnail")
-                    );
+            if (InObject != nullptr && FAssetUtilities::ReflectedThisRun.Contains(Reflected)) {
+                return InObject;
+            }
 
-                if (DownloadStatus) {
-                    AppendNotification(
-                        AssetNameText,
-                        FText::FromString(Type),
-                        2.0f,
-                        IconBrush,
-                        SNotificationItem::CS_Success,
-                        false,
-                        310.0f
-                    );
-                } else {
-                    AppendNotification(
-                        AssetNameText,
-                        FText::FromString(Type),
-                        5.0f,
-                        IconBrush,
-                        SNotificationItem::CS_Fail,
-                        true,
-                        310.0f
-                    );
-                }
+            FAssetUtilities::ReflectedThisRun.Add(Reflected);
+
+            const FString Asked = FSoftObjectPath(Type + "'" + NewPath + "." + Name + "'").ToString();
+            const FString Where = Lands.IsEmpty() ? Asked : FSoftObjectPath(Type + "'" + Lands + "'").ToString();
+
+            if (InObject == nullptr && Path.StartsWith(TEXT("/Script/"))) {
+                FImportIssues::ReportUnresolvedReference(Type, Name, Path, Within);
+
+                return InObject;
+            }
+
+            if (InObject == nullptr && PackageHoldsAsset(FSoftObjectPath(Where).GetLongPackageName())) {
+                FImportIssues::ReportUnresolvedReference(Type, Name, Path, Within);
+
+                return InObject;
+            }
+
+            if (FAssetUtilities::ConstructAsset(Asked, Where, Type, InObject, DownloadStatus) && DownloadStatus) {
+                AppendNotification(
+                    FText::FromString(Name),
+                    FText::FromString(Type),
+                    2.0f,
+                    FSlateIconFinder::FindCustomIconBrushForClass(FindObject<UClass>(nullptr, *("/Script/Engine." + Type)), TEXT("ClassThumbnail")),
+                    SNotificationItem::CS_Success,
+                    false,
+                    310.0f
+                );
+            }
+
+            if (InObject == nullptr) {
+                FImportIssues::ReportUnresolvedReference(Type, Name, Path, Within);
             }
         }
     }
@@ -147,157 +170,125 @@ TObjectPtr<T> IImporter::DownloadWrapper(
 }
 
 template <typename T>
-void IImporter::LoadExport(
-    const TSharedPtr<FJsonObject>* PackageIndex,
-    TObjectPtr<T>& Object
-) {
-    /* Hefty code */
-    FString ObjectType, ObjectName, ObjectPath, Outer;
+void IImporter::LoadExport(const TSharedPtr<FJsonObject>* PackageIndex, TObjectPtr<T>& Object) {
+	FString ObjectType, ObjectName, ObjectPath, Outer;
+	PackageIndex->Get()->GetStringField(TEXT("ObjectName")).Split("'", &ObjectType, &ObjectName);
 
-    PackageIndex->Get()->GetStringField(TEXT("ObjectName")).Split(
-        "'",
-        &ObjectType,
-        &ObjectName
-    );
+	ObjectPath = PackageIndex->Get()->GetStringField(TEXT("ObjectPath"));
+	ObjectPath.Split(".", &ObjectPath, nullptr);
 
-    ObjectPath = PackageIndex->Get()->GetStringField(TEXT("ObjectPath"));
-    ObjectPath.Split(".", &ObjectPath, nullptr);
+	ObjectName = ObjectName.Replace(TEXT("'"), TEXT(""));
 
-    ObjectName = ObjectName.Replace(TEXT("'"), TEXT(""));
+	const bool bWithin = ObjectName.Contains(TEXT(":"));
 
-    /* Subobjects nest arbitrarily deep, so only the last segment names the export and the one
-     * before it is its outer. Peeling a fixed number of segments off the front leaves anything
-     * deeper than two levels unresolvable: a reroute inside a composite's subgraph comes through
-     * as Material:MaterialGraph_1.MaterialGraphNode_Composite_0.<Subgraph>.Reroute_8, and used to
-     * come out of here still carrying "<Subgraph>." in front of its name. */
-    if (ObjectName.Contains(".")) {
-        FString Chain;
+	const FString Spelled = ObjectName;
 
-        ObjectName.Split(
-            ".",
-            &Chain,
-            &ObjectName,
-            ESearchCase::IgnoreCase,
-            ESearchDir::FromEnd
-        );
+	ObjectName = ObjectName.Replace(TEXT(":"), TEXT("."));
 
-        /* Leaves Outer alone when there is nothing in front of the leaf but the asset itself */
-        Chain.Split(
-            ".",
-            nullptr,
-            &Outer,
-            ESearchCase::IgnoreCase,
-            ESearchDir::FromEnd
-        );
-    }
+	if (ObjectName.Contains(".")) {
+		FString Chain;
+		ObjectName.Split(".", &Chain, &ObjectName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
 
-    ObjectPath = ToEditorPackagePath(ObjectPath);
+		Chain.Split(".", nullptr, &Outer, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+	}
 
-    /* Try to load object using the object path and the object name combined */
-    TObjectPtr<T> LoadedObject =
-        LoadObjectByPath<T>(ObjectPath + "." + ObjectName);
+	ObjectPath = ToEditorPackagePath(ObjectPath);
 
-    if (!LoadedObject) {
-        FString NewObjectPath;
-        FString ObjectFileName; {
-            ObjectPath.Split(
-                "/",
-                &NewObjectPath,
-                &ObjectFileName,
-                ESearchCase::IgnoreCase,
-                ESearchDir::FromEnd
-            );
-        }
+	FString Held;
 
-        NewObjectPath = NewObjectPath + "/" + ObjectName;
+	if (bWithin && PackageFileOf(ObjectPath, Held) && FPaths::GetExtension(Held, true) == FPackageName::GetMapPackageExtension()) {
+		return;
+	}
 
-        if (ObjectFileName != ObjectName) {
-            LoadedObject = LoadObjectByPath<T>(
-                NewObjectPath + "." + ObjectName
-            );
-        }
-    }
+	FString Lands;
 
-    if (GetParent() != nullptr) {
-        if (!Outer.IsEmpty() &&
-            GetParent()->IsA(AActor::StaticClass())) {
+	if (FTextureTypes::IsSupported(ObjectType) && GetSettings()->AssetSettings.PackagedAssets == ERPackagedAssets::Separate) {
+		FString Leaf;
 
-            const AActor* NewLoadedObject = Cast<AActor>(GetParent());
-            auto Components = NewLoadedObject->GetComponents();
+		if (ObjectPath.Split(TEXT("/"), nullptr, &Leaf, ESearchCase::CaseSensitive, ESearchDir::FromEnd) && !Leaf.IsEmpty() && Leaf != ObjectName) {
+			Lands = ObjectPath + TEXT("_Texture.") + Leaf + TEXT("_Texture");
+		}
+	}
 
-            /* UE4.23 compatibility: no if constexpr */
-            for (UActorComponent* Component : Components) {
-                if (Component &&
-                    Component->GetName() == ObjectName &&
-                    Component->IsA(T::StaticClass())) {
+	TObjectPtr<T> LoadedObject = Lands.IsEmpty() ? nullptr : LoadObjectByPath<T>(Lands);
 
-                    LoadedObject = Cast<T>(Component);
-                    break;
-                }
-            }
-        }
-    }
+	if (!LoadedObject && bWithin) {
+		LoadedObject = LoadObjectByPath<T>(Spelled.StartsWith(TEXT("/")) ? Spelled : ObjectPath + TEXT(".") + Spelled);
+	}
 
-    /* Material Expression case */
-    if (!LoadedObject && ObjectName.Contains("MaterialExpression")) {
-        FString SplitObjectName;
+	if (!LoadedObject) LoadedObject = LoadObjectByPath<T>(ObjectPath + "." + ObjectName);
 
-        ObjectPath.Split(
-            "/",
-            nullptr,
-            &SplitObjectName,
-            ESearchCase::IgnoreCase,
-            ESearchDir::FromEnd
-        );
+	if (!LoadedObject) {
+		FString NewObjectPath;
+		FString ObjectFileName; {
+			ObjectPath.Split("/", &NewObjectPath, &ObjectFileName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+		}
 
-        LoadedObject = LoadObjectByPath<T>(
-            ObjectPath + "." + SplitObjectName + ":" + ObjectName
-        );
-    }
+		NewObjectPath = NewObjectPath + "/" + ObjectName;
 
-    Object = LoadedObject;
+		if (ObjectFileName != ObjectName) {
+			LoadedObject = LoadObjectByPath<T>(NewObjectPath + "." + ObjectName);
+		}
+	}
 
-    if (!Object &&
-        GetObjectSerializer() != nullptr &&
-        GetPropertySerializer() != nullptr &&
-        GetPropertySerializer()->ExportsContainer != nullptr) {
+	if (GetParent() != nullptr) {
+		if (!Outer.IsEmpty() && GetParent()->IsA(AActor::StaticClass())) {
+			const AActor* NewLoadedObject = Cast<AActor>(GetParent());
+			auto Components = NewLoadedObject->GetComponents();
 
-        const FUObjectExport* Export =
-            GetPropertySerializer()->ExportsContainer->Find(ObjectName);
+			for (UActorComponent* Component : Components) {
+#if UE4_24_BELOW
+				if constexpr (TIsDerivedFrom<T, UActorComponent>::IsDerived) {
+#else
+				if constexpr (TIsDerivedFrom<T, UActorComponent>::Value) {
+#endif
+					if (ObjectName == Component->GetName()) {
+						if (Component->IsA(T::StaticClass())) {
+							LoadedObject = Cast<T>(Component);
+						}
+					}
+				}
+			}
+		}
+	}
 
-        if (Export &&
-            Export->IsJsonAndObjectValid() &&
-            Export->Object != nullptr &&
-            Export->Object->IsA(T::StaticClass())) {
+	if (!LoadedObject && ObjectName.Contains("MaterialExpression")) {
+		FString SplitObjectName;
+		ObjectPath.Split("/", nullptr, &SplitObjectName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+		LoadedObject = LoadObjectByPath<T>(ObjectPath + "." + SplitObjectName + ":" + ObjectName);
+	}
 
-            Object = TObjectPtr<T>(Cast<T>(Export->Object));
-        }
-    }
+	Object = LoadedObject;
 
-    /* If object is still null, send off to Cloud to download */
-    if (!Object) {
-        Object = DownloadWrapper(
-            LoadedObject,
-            ObjectType,
-            ObjectName,
-            ObjectPath
-        );
-    }
+	if (!Object && GetObjectSerializer() != nullptr && GetPropertySerializer() != nullptr && GetPropertySerializer()->ExportsContainer != nullptr) {
+		FUObjectExport* Export = GetPropertySerializer()->ExportsContainer->Find(ObjectName);
+
+		if (Export != nullptr && Export->IsJsonValid() && Export->Object == nullptr) {
+			GetObjectSerializer()->SpawnExport(Export);
+		}
+
+		if (Export && Export->IsJsonAndObjectValid() && Export->Object != nullptr && Export->Object->IsA(T::StaticClass())) {
+			Object = TObjectPtr<T>(Cast<T>(Export->Object));
+		}
+	}
+
+	if (!Object) {
+		if (ObjectType == "WidgetBlueprintGeneratedClass") return;
+
+		Object = DownloadWrapper(LoadedObject, ObjectType, ObjectName, ObjectPath, Lands, bWithin ? Spelled : FString());
+	}
 }
 
 template <typename T>
-TArray<TObjectPtr<T>> IImporter::LoadExport(
-    const TArray<TSharedPtr<FJsonValue>>& PackageArray,
-    TArray<TObjectPtr<T>> Array
-) {
-    for (const TSharedPtr<FJsonValue>& ArrayElement : PackageArray) {
-        const TSharedPtr<FJsonObject> ObjectPtr = ArrayElement->AsObject();
-        TObjectPtr<T> Out;
+TArray<TObjectPtr<T>> IImporter::LoadExport(const TArray<TSharedPtr<FJsonValue>>& PackageArray, TArray<TObjectPtr<T>> Array) {
+	for (const TSharedPtr<FJsonValue>& ArrayElement : PackageArray) {
+		const TSharedPtr<FJsonObject> ObjectPtr = ArrayElement->AsObject();
+		TObjectPtr<T> Out;
 
-        LoadExport<T>(&ObjectPtr, Out);
+		LoadExport<T>(&ObjectPtr, Out);
 
-        Array.Add(Out);
-    }
+		Array.Add(Out);
+	}
 
-    return Array;
+	return Array;
 }

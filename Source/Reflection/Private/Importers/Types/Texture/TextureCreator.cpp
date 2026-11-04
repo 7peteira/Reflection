@@ -1,6 +1,7 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/Texture/TextureCreator.h"
+
+#include "Importers/Constructor/ImportIssues.h"
 
 #include "Engine/TextureCube.h"
 #include "Engine/TextureLightProfile.h"
@@ -45,6 +46,7 @@ bool FTextureCreator::Create(const FString& Type, const TSharedPtr<FJsonObject>&
 }
 
 bool FTextureCreator::IsRawMipData() const {
+
 #if PLATFORM_LINUX
 	return false;
 #else
@@ -57,14 +59,10 @@ bool FTextureCreator::RequireRawMipData(const TCHAR* What) const {
 		return true;
 	}
 
-	/* An encoded image is one flat eight bit picture. There is no stack of slices left in it to
-	 * rebuild from, so these classes have nothing to work with. */
 	UE_LOG(LogReflection, Error, TEXT("%s can only be rebuilt from raw mip data, which \"%s\" didn't come down as"), What, *AssetName);
 
 	return false;
 }
-
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Creators ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 template <typename T>
 bool FTextureCreator::CreateTexture2D(UTexture*& OutTexture, TArray<uint8>& Data, const TSharedPtr<FJsonObject>& Export) {
@@ -98,7 +96,6 @@ bool FTextureCreator::CreateTexture2D(UTexture*& OutTexture, TArray<uint8>& Data
 			|| Texture2D->CompressionSettings == TC_Normalmap
 		)) {
 
-		/* Normal Map Swizzle | Older Unreal Engine 4 builds */
 		const int32 Width = Texture2D->Source.GetSizeX();
 		const int32 Height = Texture2D->Source.GetSizeY();
 
@@ -121,8 +118,6 @@ bool FTextureCreator::CreateTexture2D(UTexture*& OutTexture, TArray<uint8>& Data
 		Texture2D->MipGenSettings = TMGS_NoMipmaps;
 	}
 
-	/* An encoded image comes out of the factory with its source already filled in, only raw mips
-	 * have to be turned back into source data by hand */
 	if (IsRawMipData()) {
 		FTextureCookedLayout Cooked;
 		if (!GetCookedLayout(Export, 1, Cooked)) {
@@ -154,7 +149,6 @@ bool FTextureCreator::CreateTexture2DArray(UTexture*& OutTexture2DArray, TArray<
 	DeserializeTexture(Texture2DArray, Export);
 	SetPlatformData(Texture2DArray, new FTexturePlatformData());
 
-	/* Slices sit one after another rather than stacked into the height */
 	FTextureCookedLayout Cooked;
 	if (!GetCookedArrayLayout(Export, Cooked)) {
 		return false;
@@ -188,7 +182,6 @@ bool FTextureCreator::CreateTextureCube(UTexture*& OutTextureCube, TArray<uint8>
 	DeserializeTexture(TextureCube, Export);
 	SetPlatformData(TextureCube, new FTexturePlatformData());
 
-	/* Always the same six faces, stacked */
 	FTextureCookedLayout Cooked;
 	if (!GetCookedLayout(Export, 6, Cooked)) {
 		return false;
@@ -221,7 +214,6 @@ bool FTextureCreator::CreateVolumeTexture(UTexture*& OutVolumeTexture, TArray<ui
 	DeserializeTexture(VolumeTexture, Export);
 	SetPlatformData(VolumeTexture, new FTexturePlatformData());
 
-	/* Depth varies per asset, so fall back to reading it off the width */
 	FTextureCookedLayout Cooked;
 	if (!GetCookedLayout(Export, 0, Cooked)) {
 		return false;
@@ -257,8 +249,6 @@ bool FTextureCreator::CreateRenderTarget2D(UTexture*& OutRenderTarget2D, const T
 
 	DeserializeTexture(RenderTarget2D, Export);
 
-	/* A render target is created empty, so its size is a property of its own rather than
-	 * something cooked, and it never carries a payload to read one off */
 	const TSharedPtr<FJsonObject> Properties = GetProperties(Export);
 
 	int SizeX;
@@ -275,33 +265,25 @@ bool FTextureCreator::CreateRenderTarget2D(UTexture*& OutRenderTarget2D, const T
 
 	bool bAutoGenerateMips = false;
 	if (Properties->TryGetBoolField(TEXT("bAutoGenerateMips"), bAutoGenerateMips)) RenderTarget2D->bAutoGenerateMips = bAutoGenerateMips;
-	/* Render targets only gained a mip sampler filter alongside auto generated mips in 4.23 */
-if (bAutoGenerateMips) {
+#if !UE4_23_BELOW
+	if (bAutoGenerateMips) {
 		FString MipsSamplerFilter;
 
-		if (Properties->TryGetStringField(TEXT("MipsSamplerFilter"), MipsSamplerFilter)) {
-			const int64 FilterValue = StaticEnum<TextureFilter>()->GetValueByNameString(MipsSamplerFilter);
-			/* The member is not present in every UE4.22/4.23 fork. Resolve it through reflection
-			 * when the target engine exposes it, preserving the setting without a hard dependency. */
-			if (FNumericProperty* FilterProperty = CastField<FNumericProperty>(FindFProperty<FProperty>(RenderTarget2D->GetClass(), TEXT("MipsSamplerFilter")))) {
-				FilterProperty->SetIntPropertyValue(FilterProperty->ContainerPtrToValuePtr<void>(RenderTarget2D), FilterValue);
-			}
-		}
+		if (Properties->TryGetStringField(TEXT("MipsSamplerFilter"), MipsSamplerFilter))
+			RenderTarget2D->MipsSamplerFilter = static_cast<TextureFilter>(StaticEnum<TextureFilter>()->GetValueByNameString(MipsSamplerFilter));
 	}
+#endif
 
 	OutRenderTarget2D = RenderTarget2D;
 
 	return true;
 }
 
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Source data ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
 int64 FTextureCookedLayout::GetEncodedSize() const {
 	return Source.GetEncodedSliceSize(SizeX, SizeY) * SizeZ;
 }
 
 bool FTextureCookedLayout::DropMip() {
-	/* Block compressed data bottoms out at a single block, and the decoders count whole blocks */
 	const int32 Smallest = Source.BlockDim;
 
 	if (SizeX <= Smallest && SizeY <= Smallest) {
@@ -325,12 +307,6 @@ bool FTextureCreator::GetCookedLayout(const TSharedPtr<FJsonObject>& Export, con
 	Export->TryGetNumberField(TEXT("SizeX"), SizeX);
 	Export->TryGetNumberField(TEXT("SizeY"), ReportedSizeY);
 
-	/* Two shapes of export reach here. Cloud used to fold every slice into the height and flatten
-	 * the mip's depth to one, so the height had to be divided back down. It now leaves the height
-	 * alone and writes the real depth on each mip, which is the same thing the archive holds.
-	 *
-	 * Mip zero tells them apart without having to know which Core produced the dump: it says how
-	 * many bytes it holds, and only one of the two readings accounts for all of them. */
 	int32 MipSlices = 0;
 	int64 MipPayload = 0;
 	GetFirstMipDescription(Export, MipSlices, MipPayload);
@@ -343,7 +319,7 @@ bool FTextureCreator::GetCookedLayout(const TSharedPtr<FJsonObject>& Export, con
 		if (Slices <= 0) {
 			Slices = SizeX > 0 ? ReportedSizeY / SizeX : 0;
 
-			UE_LOG(LogReflection, Warning, TEXT("\"%s\" was sent without a slice count, reading %d off its width. Update Core to import this reliably."), *AssetName, Slices);
+			UE_LOG(LogReflection, Warning, TEXT("\"%s\" was sent without a slice count, reading %d off its width. Update Mirror to import this reliably."), *AssetName, Slices);
 		}
 	}
 
@@ -355,7 +331,6 @@ bool FTextureCreator::GetCookedLayout(const TSharedPtr<FJsonObject>& Export, con
 
 	int32 SizeY = ReportedSizeY;
 
-	/* The height carries every slice when it alone accounts for the whole payload */
 	FTextureSourceLayout Layout;
 	FString PixelFormatName;
 	Export->TryGetStringField(TEXT("PixelFormat"), PixelFormatName);
@@ -399,7 +374,6 @@ bool FTextureCreator::GetCookedArrayLayout(const TSharedPtr<FJsonObject>& Export
 	Export->TryGetNumberField(TEXT("SizeX"), SizeX);
 	Export->TryGetNumberField(TEXT("SizeY"), SizeY);
 
-	/* Nothing was folded into the height here, so the count is whatever the export says it is */
 	const int32 Slices = GetReportedSliceCount(Export);
 
 	return ReadCookedLayout(Export, SizeX, SizeY, Slices > 0 ? Slices : 1, OutCooked);
@@ -430,8 +404,6 @@ bool FTextureCreator::ReadCookedLayout(const TSharedPtr<FJsonObject>& Export, co
 }
 
 int32 FTextureCreator::GetReportedSliceCount(const TSharedPtr<FJsonObject>& Export) {
-	/* 4.25 packed the slice count in with the cube map and opt data bits. Before that it stood on
-	 * its own, and the dump names it accordingly, so both spellings are read. */
 	uint32 PackedData = 0;
 	if (Export->TryGetNumberField(TEXT("PackedData"), PackedData)) {
 		constexpr uint32 SliceMask = (1u << 30) - 1u;
@@ -446,15 +418,8 @@ int32 FTextureCreator::GetReportedSliceCount(const TSharedPtr<FJsonObject>& Expo
 }
 
 bool FTextureCreator::BuildSourceFromRawMip(UTexture* Texture, const TArray<uint8>& Data, const FTextureCookedLayout& Cooked) const {
-	/*
-	 * Cloud sends the first mip that still has its bulk data, which isn't always the top one:
-	 * higher mips can live in a pak that isn't mounted. The payload size says which mip actually
-	 * came through, so walk the chain until it fits rather than decoding at the wrong size.
-	 */
 	FTextureCookedLayout Mip = Cooked;
 
-	/* The size has to land exactly. Settling for "big enough" would happily decode the wrong mip
-	 * at the wrong dimensions and hand back a plausible looking asset full of noise. */
 	while (Data.Num() != Mip.GetEncodedSize()) {
 		if (!Mip.DropMip()) {
 			UE_LOG(LogReflection, Error, TEXT("\"%s\" came back with %d bytes, which matches no mip of a %d x %d x %d %s texture"), *AssetName, Data.Num(), Cooked.SizeX, Cooked.SizeY, Cooked.SizeZ, *UTexture::GetPixelFormatEnum()->GetNameStringByValue(Cooked.PixelFormat));
@@ -464,7 +429,19 @@ bool FTextureCreator::BuildSourceFromRawMip(UTexture* Texture, const TArray<uint
 	}
 
 	if (Mip.SizeX != Cooked.SizeX) {
-		UE_LOG(LogReflection, Warning, TEXT("\"%s\" only had mip data down at %d x %d x %d, importing that instead of %d x %d x %d"), *AssetName, Mip.SizeX, Mip.SizeY, Mip.SizeZ, Cooked.SizeX, Cooked.SizeY, Cooked.SizeZ);
+		UE_LOG(LogReflection, Error, TEXT("\"%s\" only had mip data down at %d x %d x %d, importing that instead of %d x %d x %d"), *AssetName, Mip.SizeX, Mip.SizeY, Mip.SizeZ, Cooked.SizeX, Cooked.SizeY, Cooked.SizeZ);
+
+		FImportIssues::ReportFor(
+			AssetName,
+			Package != nullptr ? Package->GetName() : FString(),
+			Texture != nullptr ? Texture->GetClass()->GetName() : FString(),
+			EImportIssue::Data,
+			FString::Printf(
+				TEXT("Imported at %d x %d x %d instead of %d x %d x %d"),
+				Mip.SizeX, Mip.SizeY, Mip.SizeZ, Cooked.SizeX, Cooked.SizeY, Cooked.SizeZ
+			),
+			TEXT("The mips above that one weren't in a mounted pak, so this is all there was to import.")
+		);
 	}
 
 	const int64 EncodedSliceSize = Mip.Source.GetEncodedSliceSize(Mip.SizeX, Mip.SizeY);
@@ -493,10 +470,10 @@ bool FTextureCreator::BuildSourceFromRawMip(UTexture* Texture, const TArray<uint
 
 	Texture->UpdateResource();
 
+	FlushRenderingCommands();
+
 	return true;
 }
-
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Deserialization ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 void FTextureCreator::DeserializeTexture(UTexture* Texture, const TSharedPtr<FJsonObject>& Export) const {
 	if (Texture == nullptr) return;
@@ -528,11 +505,9 @@ void FTextureCreator::DeserializeTexture2D(UTexture2D* Texture2D, const TSharedP
 	if (Properties->TryGetNumberField(TEXT("FirstResourceMemMip"), FirstResourceMemMip)) Texture2D->FirstResourceMemMip = FirstResourceMemMip;
 	if (Properties->TryGetNumberField(TEXT("LevelIndex"), LevelIndex)) Texture2D->LevelIndex = LevelIndex;
 
-	/* ~~~~~~~~~~~~~ Platform Data ~~~~~~~~~~~~~ */
 	FTexturePlatformData* PlatformData = GetPlatformData(Texture2D);
 	if (PlatformData == nullptr) return;
 
-	/* Cooked sizes live on the export rather than under its properties */
 	int SizeX;
 	int SizeY;
 #if !UE4_23_BELOW
@@ -542,8 +517,6 @@ void FTextureCreator::DeserializeTexture2D(UTexture2D* Texture2D, const TSharedP
 
 	if (Export->TryGetNumberField(TEXT("SizeX"), SizeX)) PlatformData->SizeX = SizeX;
 	if (Export->TryGetNumberField(TEXT("SizeY"), SizeY)) PlatformData->SizeY = SizeY;
-	/* 4.24 packed the slice count together with the cube map and opt data bits into PackedData.
-	 * Before that the slice count stood on its own, and the dump names it accordingly. */
 #if UE4_23_BELOW
 	int NumSlices;
 	if (Export->TryGetNumberField(TEXT("NumSlices"), NumSlices)) PlatformData->NumSlices = NumSlices;

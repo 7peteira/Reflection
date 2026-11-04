@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/UI/SupportedAssets/SSupportedAssetsPanel.h"
 
 #include "Importers/Constructor/Types.h"
@@ -20,8 +19,6 @@
 
 #define LOCTEXT_NAMESPACE "Reflection.SupportedAssets"
 
-/* BlueprintGeneratedClass and the like are what a cooked package calls them, but the icon and the
- * name both belong to the class they were generated from */
 static FString ToDisplayType(const FString& Type) {
 	FString Display;
 
@@ -32,7 +29,6 @@ static FString ToDisplayType(const FString& Type) {
 	return Type;
 }
 
-/* One row of the list */
 class SSupportedAssetRow : public SMultiColumnTableRow<TSharedPtr<FSupportedAssetEntry>> {
 public:
 	SLATE_BEGIN_ARGS(SSupportedAssetRow) {}
@@ -51,8 +47,6 @@ public:
 		}
 
 		if (ColumnName == SupportedAssetColumns::Type) {
-			/* Looked up by name across every module, so the ones living outside Engine still
-			 * find their icon. Falls back to the default class icon when nothing matches. */
 			const UClass* Class = FindClassByType(Entry->DisplayType);
 
 			return SNew(SHorizontalBox)
@@ -165,12 +159,17 @@ void SSupportedAssetsPanel::Construct(const FArguments& InArgs) {
 }
 
 void SSupportedAssetsPanel::Refresh() {
-	AllEntries.Reset();
+	AllEntries = Collect();
 
-	/* Keyed on type, because a type can be reached more than one way and the first claim wins */
+	ApplyFilter();
+}
+
+TArray<TSharedPtr<FSupportedAssetEntry>> SSupportedAssetsPanel::Collect() {
+	TArray<TSharedPtr<FSupportedAssetEntry>> AllEntries;
+
 	TMap<FString, TSharedPtr<FSupportedAssetEntry>> Seen;
 
-	const auto Add = [&Seen, this](const FString& Type, const FString& Category, const FString& Importer) {
+	const auto Add = [&Seen, &AllEntries](const FString& Type, const FString& Category, const FString& Importer) {
 		if (Type.IsEmpty() || Seen.Contains(Type)) return;
 
 		TSharedPtr<FSupportedAssetEntry> Entry = MakeShared<FSupportedAssetEntry>();
@@ -186,21 +185,18 @@ void SSupportedAssetsPanel::Refresh() {
 		AllEntries.Add(Entry);
 	};
 
-	/* Types with an importer of their own */
 	for (const TPair<TArray<FString>, FImporterRegistrationInfo>& Registration : GetFactoryRegistry()) {
 		for (const FString& Type : Registration.Key) {
 			Add(Type, Registration.Value.Category, TEXT("Dedicated"));
 		}
 	}
 
-	/* Types the templated importer covers by deserializing their properties straight across */
 	for (const TPair<FString, TArray<FString>>& Pair : ImportTypes::Templated) {
 		for (const FString& Type : Pair.Value) {
 			Add(Type, Pair.Key, TEXT("Templated"));
 		}
 	}
 
-	/* Textures are rebuilt from pixels rather than properties, so they sit outside both */
 	for (const FString& Type : FTextureTypes::All()) {
 		Add(Type, TEXT("Texture Assets"), TEXT("Texture"));
 	}
@@ -210,11 +206,10 @@ void SSupportedAssetsPanel::Refresh() {
 			return A->Category < B->Category;
 		}
 
-		/* Sorted the way it reads, not the way it's stored */
 		return A->DisplayType < B->DisplayType;
 	});
 
-	ApplyFilter();
+	return AllEntries;
 }
 
 void SSupportedAssetsPanel::OnSearchChanged(const FText& Text) {
@@ -227,7 +222,6 @@ void SSupportedAssetsPanel::ApplyFilter() {
 	VisibleEntries.Reset();
 
 	for (const TSharedPtr<FSupportedAssetEntry>& Entry : AllEntries) {
-		/* Matched against the full type too, so searching the name off a Cloud export still lands */
 		if (SearchText.IsEmpty()
 			|| Entry->Type.Contains(SearchText)
 			|| Entry->DisplayType.Contains(SearchText)
@@ -242,7 +236,6 @@ void SSupportedAssetsPanel::ApplyFilter() {
 }
 
 FText SSupportedAssetsPanel::GetSummaryText() const {
-	/* Data assets never get listed one by one, the importer takes the whole hierarchy */
 	const FString Counts = VisibleEntries.Num() == AllEntries.Num()
 		? FString::Printf(TEXT("%d asset types"), AllEntries.Num())
 		: FString::Printf(TEXT("%d of %d asset types"), VisibleEntries.Num(), AllEntries.Num());

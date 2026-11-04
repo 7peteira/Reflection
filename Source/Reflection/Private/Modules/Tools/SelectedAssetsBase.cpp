@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Tools/SelectedAssetsBase.h"
 
 #include "Modules/Cloud/Cloud.h"
@@ -21,13 +20,10 @@ void TSelectedAssetsBase::Execute() {
 		return;
 	}
 
-	/* Reached straight off the Cloud menu, never through the reflect button, so the project name
-	 * the exports get resolved against is fetched here */
 	Cloud::EnsureMetadataBlocking();
 
 	TArray<FAssetData> AssetDataList = GetAssetsInSelectedFolder();
 
-	/* One selected asset is a more specific request than the folder it happens to sit in */
 	if (const UObject* SelectedAsset = GetSelectedAsset<UObject>(true)) {
 		AssetDataList.Empty();
 		AssetDataList.Add(FAssetData(SelectedAsset));
@@ -64,10 +60,7 @@ void TSelectedAssetsBase::RequestNext() {
 		return;
 	}
 
-	/* One request at a time: Process deserializes into live assets, and the tools were written
-	 * expecting to be the only thing doing that */
 	Cloud::Export::GetRawExportsAsync(Queue[QueueIndex], [this](const TArray<TSharedPtr<FJsonValue>>& Exports) {
-		/* Copied out of the response, which does not outlive a deferred call */
 		const TArray<TSharedPtr<FJsonValue>> OwnedExports = Exports;
 
 		Cloud::RunWhenSafe([this, OwnedExports]() {
@@ -82,13 +75,7 @@ void TSelectedAssetsBase::HandleExports(const TArray<TSharedPtr<FJsonValue>>& Ex
 	QueueIndex++;
 
 	if (Exports.Num() > 0 && !ObjectPath.IsEmpty()) {
-		/* Looked up now rather than held from Execute: the asset could have been unloaded
-		 * while the request was out */
 		if (UObject* Object = LoadObjectByPath<UObject>(ObjectPath)) {
-			/* The serializers are plain NewObject's that nothing keeps alive, and a run spans
-			 * enough ticks for a collection to happen between two assets. Building them here
-			 * puts their whole lifetime inside one call stack, and hands each asset a
-			 * serializer with no leftover state from the last one. */
 			CreateSerializer();
 
 			Process(Object, Exports);
@@ -111,7 +98,6 @@ void TSelectedAssetsBase::Finish() {
 	bRunning = false;
 
 	if (!PendingBrowseTo.IsEmpty()) {
-		/* Looked up now rather than held from Process: the asset could have been unloaded since */
 		if (UObject* Object = LoadObjectByPath<UObject>(PendingBrowseTo)) {
 			BrowseToAsset(Object);
 		}

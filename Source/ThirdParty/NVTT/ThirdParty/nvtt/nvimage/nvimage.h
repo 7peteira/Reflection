@@ -7,17 +7,9 @@
 
 #include <nvcore/nvcore.h>
 
-// Export free functions and classes from the ReflectionNVTT module.
-// Class members must not also carry NVTT_API when the enclosing class is exported.
-#ifndef NVTT_API
-#define NVTT_API REFLECTIONNVTT_API
-#endif
-#ifndef NVIMAGE_API
-#define NVIMAGE_API REFLECTIONNVTT_API
-#endif
-#ifndef NVIMAGE_CLASS
-#define NVIMAGE_CLASS REFLECTIONNVTT_API
-#endif
+// Function linkage
+#define NVIMAGE_API
+#define NVIMAGE_CLASS
 
 #endif // NV_IMAGE_H
 

@@ -1,16 +1,6 @@
-
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Reflection.h"
 
-/* Definitions moved from Reflection.h for C++14 compatibility */
-const FString GitHub::URL = TEXT("https://github.com/JsonAsAsset/Reflection");
-const FString GitHub::README::Link = GitHub::URL + TEXT("?tab=readme-ov-file#asset-types");
-const FString GitHub::README::AssetTypes = GitHub::README::Link + TEXT("#asset-types");
-const FString GitHub::README::Cloud = GitHub::URL + TEXT("#cloud");
-const FString Donation::KO_FI = TEXT("https://ko-fi.com/tectory");
-
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 #if ENGINE_UE4
 #if !UE4_23_BELOW
 #include "ToolMenus.h"
@@ -20,108 +10,98 @@ const FString Donation::KO_FI = TEXT("https://ko-fi.com/tectory");
 
 #include "Http.h"
 #include "Modules/Versioning.h"
+#include "Modules/Support.h"
 
 #include "Modules/UI/StyleModule.h"
 #include "Modules/UI/SupportedAssets/SupportedAssetsTab.h"
 #include "Modules/UI/Validation/ValidationTab.h"
 #include "Modules/Toolbar/Toolbar.h"
 #include "Engine/EngineUtilities.h"
-#include "Modules/Cloud/Cloud.h"
 
 #include "Logging/LogVerbosity.h"
 #include "JsonGlobals.h"
 #include "Settings/Runtime.h"
-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 #ifdef _MSC_VER
 #undef GetObject
 #endif
 
-void FReflectionModule::StartupModule()
-{
-    LogHttp.SetVerbosity(ELogVerbosity::Error);
+void FReflectionModule::StartupModule() {
+	LogHttp.SetVerbosity(ELogVerbosity::Error);
 
-    /* Exports are read by asking for fields that may not be there, which is how the reader tells
-     * an absent one from an empty one. Json warns on every miss, so one import can bury the log
-     * in complaints about something working as intended. */
-    LogJson.SetVerbosity(ELogVerbosity::NoLogging);
+	LogJson.SetVerbosity(ELogVerbosity::NoLogging);
 
-    FRMetadata::Initialize();
+	FRMetadata::Initialize();
 
-    /* Initialize plugin style, reload textures */
     FReflectionStyle::Initialize();
     FReflectionStyle::ReloadTextures();
 
-    /* Register tabs, the style has to exist first for their icons */
-    FSupportedAssetsTab::Register();
+	FSupportedAssetsTab::Register();
 
 #if ENGINE_UE5
-    FValidationTab::Register();
+	FValidationTab::Register();
 #endif
 
-    /* Register Toolbar */
-    Toolbar = NewObject<UReflectionToolbar>();
-    Toolbar->AddToRoot();
+	Toolbar = NewObject<UReflectionToolbar>();
+	Toolbar->AddToRoot();
 
-#if ENGINE_UE5
-    UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateUObject(Toolbar, &UReflectionToolbar::Register));
-#else
-    {
-        const TSharedPtr<FUICommandList> PluginCommands = MakeShareable(new FUICommandList);
-
-        FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
-        const TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender);
-        ToolbarExtender->AddToolBarExtension(
-            "Settings",
-            EExtensionHook::After,
-            PluginCommands,
-            FToolBarExtensionDelegate::CreateUObject(Toolbar, &UReflectionToolbar::UE4Register)
-        );
-
-        LevelEditorModule.GetToolBarExtensibilityManager()->AddExtender(ToolbarExtender);
-    }
+#if !UE4_23_BELOW
+	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateUObject(Toolbar, &UReflectionToolbar::Register));
 #endif
 
-    GReflectionVersioning.Update();
-    GReflectionRuntime.Update();
+#if ENGINE_UE4
+	{
+    	const TSharedPtr<FUICommandList> PluginCommands = MakeShareable(new FUICommandList);
+
+    	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+    	const TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender);
+    	ToolbarExtender->AddToolBarExtension(
+			"Settings",
+			EExtensionHook::After,
+			PluginCommands,
+			FToolBarExtensionDelegate::CreateUObject(Toolbar, &UReflectionToolbar::UE4Register)
+		);
+
+    	LevelEditorModule.GetToolBarExtensibilityManager()->AddExtender(ToolbarExtender);
+	}
+#endif
+
+	GReflectionVersioning.Update();
+	GReflectionRuntime.Update();
+
+	FReflectionSupport::Register();
 }
 
-void FReflectionModule::ShutdownModule()
-{
-    /* Unregister startup callback and tool menus */
+void FReflectionModule::ShutdownModule() {
 #if !UE4_23_BELOW
-    UToolMenus::UnRegisterStartupCallback(this);
-    UToolMenus::UnregisterOwner(this);
+	UToolMenus::UnRegisterStartupCallback(this);
+	UToolMenus::UnregisterOwner(this);
 #endif
 
-    FSupportedAssetsTab::Unregister();
+	FSupportedAssetsTab::Unregister();
 
 #if ENGINE_UE5
-    /* The main menu bar entry is owned by the toolbar, not the module */
-    if (Toolbar)
-    {
-        UToolMenus::UnregisterOwner(Toolbar);
-    }
+	if (Toolbar) {
+		UToolMenus::UnregisterOwner(Toolbar);
+	}
 
-    FValidationTab::Unregister();
+	FValidationTab::Unregister();
 #endif
 
-    /* Shutdown the plugin style */
-    FReflectionStyle::Shutdown();
+	FReflectionSupport::Unregister();
 
-    if (Toolbar)
-    {
+	FReflectionStyle::Shutdown();
+
+	if (Toolbar) {
 #if UE4_23_BELOW
-        if (!GIsRequestingExit)
+		if (!GIsRequestingExit) {
 #else
-        if (!IsEngineExitRequested())
+		if (!IsEngineExitRequested()) {
 #endif
-        {
-            Toolbar->RemoveFromRoot();
-        }
-
-        Toolbar = nullptr;
-    }
+			Toolbar->RemoveFromRoot();
+		}
+		Toolbar = nullptr;
+	}
 }
 
 IMPLEMENT_MODULE(FReflectionModule, Reflection)

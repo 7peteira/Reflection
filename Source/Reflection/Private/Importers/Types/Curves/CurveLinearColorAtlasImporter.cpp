@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/Curves/CurveLinearColorAtlasImporter.h"
 #include "Curves/CurveLinearColorAtlas.h"
 #include "Curves/CurveLinearColor.h"
@@ -49,7 +48,7 @@ bool ICurveLinearColorAtlasImporter::Import() {
 	Object->TextureSize = FMath::Max(Width,2);
 	Object->UpdateTextures();
 #endif
-	
+
 #if !UE4_27_ONLY_BELOW && !UE5_6_BEYOND
 	if (GetAssetData()->TryGetBoolField(TEXT("bSquareResolution"), bSquareResolution)) {
 		Object->bSquareResolution = bSquareResolution;
@@ -63,7 +62,7 @@ bool ICurveLinearColorAtlasImporter::Import() {
 	double TextureSize = 0.0f;
 	double TextureHeight = 0.0f;
 #endif
-	
+
 	if (GetAssetData()->TryGetNumberField(TEXT("TextureSize"), TextureSize)) {
 		Object->TextureSize = TextureSize;
 	}
@@ -78,7 +77,6 @@ bool ICurveLinearColorAtlasImporter::Import() {
 	FPropertyChangedEvent TextureSizePropertyPropertyChangedEvent(TextureSizeProperty, EPropertyChangeType::ValueSet);
 	Object->PostEditChangeProperty(TextureSizePropertyPropertyChangedEvent);
 
-	/* Add gradient curves */
 	FProperty* GradientCurvesProperty = FindFProperty<FProperty>(Object->GetClass(), "GradientCurves");
 	FPropertyChangedEvent PropertyChangedEvent(GradientCurvesProperty, EPropertyChangeType::ArrayAdd);
 
@@ -92,7 +90,6 @@ bool ICurveLinearColorAtlasImporter::Import() {
 #else
 	CurvesLocal = LoadExport(GradientCurves, CurvesLocal);
 
-	/* Convert TObjectPtr<UCurveLinearColor> to UCurveLinearColor* and assign to Object->GradientCurves */
 	TArray<UCurveLinearColor*> RawCurves;
 	for (const TObjectPtr<UCurveLinearColor>& Curve : CurvesLocal) {
 		RawCurves.Add(Curve.Get());
@@ -101,6 +98,5 @@ bool ICurveLinearColorAtlasImporter::Import() {
 	Object->GradientCurves = RawCurves;
 #endif
 
-	/* Handle edit changes, and add it to the content browser */
 	return OnAssetCreation(Object);
 }

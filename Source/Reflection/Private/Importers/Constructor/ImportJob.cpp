@@ -1,11 +1,11 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Constructor/ImportJob.h"
 
 #include "Editor.h"
 #include "TimerManager.h"
 #include "UObject/StrongObjectPtr.h"
 
+#include "Importers/Constructor/ImportIssues.h"
 #include "Importers/Constructor/ImportReader.h"
 #include "Engine/Log.h"
 #include "Modules/UI/StyleModule.h"
@@ -14,33 +14,22 @@
 #include "Modules/Cloud/Remote.h"
 
 namespace {
-	/* How long one tick may spend importing. Plenty of single exports run well past this and
-	 * cannot be divided any further; the budget is here so that the small ones are not spread
-	 * over a frame each for no reason. */
 	constexpr double SliceBudgetSeconds = 0.008;
 
-	/* Effectively "every tick". The timer manager treats a zero or negative rate as an error, so
-	 * this is the smallest honest way to ask for one step per frame. */
 	constexpr float StepRate = 0.001f;
 
 	struct FJobState {
 		TArray<FString> Files;
 		int32 FileIndex = 0;
 
-		/* The file currently being walked ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 		FString CurrentFile;
 		FUObjectExportContainer* Container = nullptr;
 		int32 ExportIndex = 0;
 
-		/* A file containing a BlueprintGeneratedClass imports only that, the same way
-		 * IImportReader::ReadExportsAndImport decides it */
 		bool bBlueprintOnly = false;
 
 		int32 ImportedFiles = 0;
 
-		/* Full frames happen between slices, which means garbage collection does too. The objects
-		 * an export builds are reachable from a raw pointer in the container and not much else, so
-		 * the job holds them itself until it is done. */
 		TArray<TStrongObjectPtr<UObject>> Keep;
 		TSet<UObject*> Kept;
 
@@ -78,8 +67,6 @@ namespace {
 		)));
 	}
 
-	/* Holds on to whatever the last export built, along with anything else the container has
-	 * filled in along the way */
 	void KeepContainerObjects() {
 		if (GJob->Container == nullptr) {
 			return;
@@ -99,13 +86,11 @@ namespace {
 		}
 	}
 
-	/* Moves on to the next file when the current one is spent. False once there is nothing left. */
 	bool OpenPendingFile() {
 		if (GJob->Container != nullptr && GJob->Container->Exports.IsValidIndex(GJob->ExportIndex)) {
 			return true;
 		}
 
-		/* The file that just finished */
 		if (GJob->Container != nullptr) {
 			GJob->Container = nullptr;
 			GJob->ImportedFiles++;
@@ -129,12 +114,8 @@ namespace {
 				continue;
 			}
 
-			/* Left alive deliberately. Importers keep hold of exports out of this container well
-			 * past the call that made it, which is why nothing in Reflection deletes one. */
 			FUObjectExportContainer* Container = new FUObjectExportContainer(DataObjects);
 
-			/* Parsed, but nothing in it the container recognised as an export, so it is finished
-			 * the moment it is opened. Returning it would step straight off the end. */
 			if (Container->Exports.Num() == 0) {
 				UE_LOG(LogReflection, Warning, TEXT("No exports found in \"%s\"."), *FilePath);
 				GJob->ImportedFiles++;
@@ -155,14 +136,24 @@ namespace {
 		return false;
 	}
 
-	/* One frame's worth of importing. False once the job is done. */
 	bool StepJob() {
 		const double SliceStart = FPlatformTime::Seconds();
 
-		/* Dependency fetches inside these exports still block, and this keeps them painted and
-		 * cancellable while they do. Scoped to the slice, so no progress dialog is ever held
-		 * across frames. */
-		const FBlockingRequestScope BlockingScope(FText::FromString(TEXT("Reflecting from the Cloud")));
+		const FString Reached = FString::Printf(
+			TEXT("Reflecting %d of %d"),
+			FMath::Min(GJob->ImportedFiles + 1, GJob->Files.Num()),
+			GJob->Files.Num()
+		);
+
+		const FString Wait = GJob->CurrentFile.IsEmpty()
+			? Reached
+			: Reached + TEXT(": ") + FPaths::GetCleanFilename(GJob->CurrentFile);
+
+		const FBlockingRequestScope BlockingScope(
+			FText::FromString(Wait),
+			static_cast<float>(GJob->Files.Num()),
+			static_cast<float>(GJob->ImportedFiles)
+		);
 
 		do {
 			if (!OpenPendingFile()) {
@@ -191,8 +182,6 @@ namespace {
 
 		const int32 Count = GJob->ImportedFiles;
 
-		/* Dropped before the notification below, so a handler that starts another import does not
-		 * find this one still standing */
 		GJob.Reset();
 
 		UE_LOG(LogReflection, Log, TEXT("Reflection finished: %d file(s)."), Count);
@@ -206,6 +195,8 @@ namespace {
 			false,
 			310.0f
 		);
+
+		FImportIssues::Finish();
 	}
 
 	void TickJob() {
@@ -213,9 +204,6 @@ namespace {
 			return;
 		}
 
-		/* Building assets while the game is running in the editor is asking for trouble, so the
-		 * job waits it out rather than racing PIE. Said out loud, because a progress line that
-		 * stops moving on its own reads exactly like the hang this is meant to avoid. */
 		if (IsPlayingInEditor()) {
 			if (const TSharedPtr<SNotificationItem> Item = GJob->Notification.Pin()) {
 				Item->SetText(FText::FromString(TEXT("Reflection paused while in Play In Editor")));
@@ -239,7 +227,6 @@ void FImportJob::Enqueue(const TArray<FString>& Files) {
 		return;
 	}
 
-	/* No editor loop to slice against, so there is nothing to hand a frame back to */
 	if (GEditor == nullptr) {
 		for (const FString& File : Files) {
 			IImportReader::ImportReference(File);
@@ -257,6 +244,8 @@ void FImportJob::Enqueue(const TArray<FString>& Files) {
 
 	GJob = MakeUnique<FJobState>();
 	GJob->Files = Files;
+
+	FImportIssues::Begin();
 
 	GJob->Notification = AppendNotificationWithHandler(
 		FText::FromString(TEXT("Reflecting")),
@@ -285,7 +274,6 @@ void FImportJob::Cancel() {
 		return;
 	}
 
-	/* The export in flight is left to finish; only what has not been started is dropped */
 	GJob->Files.SetNum(GJob->FileIndex);
 
 	if (GJob->Container != nullptr) {

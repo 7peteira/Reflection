@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Importers/Types/Curves/CurveLinearColorImporter.h"
 #include "Curves/CurveLinearColor.h"
 #include "Factories/CurveFactory.h"
@@ -13,22 +12,18 @@ UObject* ICurveLinearColorImporter::CreateAsset(UObject* CreatedAsset) {
 }
 
 bool ICurveLinearColorImporter::Import() {
-	/* Array of containers */
 	TArray<TSharedPtr<FJsonValue>> FloatCurves = GetAssetData()->GetArrayField(TEXT("FloatCurves"));
 
 	UCurveLinearColor* CurveLinearColor = Create<UCurveLinearColor>();
 
-	/* For each container, get keys */
 	for (int i = 0; i < FloatCurves.Num(); i++) {
 		TArray<TSharedPtr<FJsonValue>> Keys = FloatCurves[i]->AsObject()->GetArrayField(TEXT("Keys"));
 		CurveLinearColor->FloatCurves[i].Keys.Empty();
 
-		/* Add keys to the array */
 		for (int j = 0; j < Keys.Num(); j++) {
 			CurveLinearColor->FloatCurves[i].Keys.Add(ObjectToRichCurveKey(Keys[j]->AsObject()));
 		}
 	}
 
-	/* Handle edit changes, and add it to the content browser */
 	return OnAssetCreation(CurveLinearColor);
 }

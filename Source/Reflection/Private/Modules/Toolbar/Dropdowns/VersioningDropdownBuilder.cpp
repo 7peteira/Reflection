@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/Toolbar/Dropdowns/VersioningDropdownBuilder.h"
 
 #include "Modules/Versioning.h"
@@ -13,9 +12,9 @@ void IVersioningDropdownBuilder::Build(FMenuBuilder& MenuBuilder) const {
 	}
 
 	if (!GReflectionVersioning.IsNewVersionAvailable() && !GReflectionVersioning.IsFutureVersion()) return;
-	
+
 	MenuBuilder.BeginSection("ReflectionVersioningSection", FText::FromString("Version"));
-	
+
 	FText Text, Tooltip;
 	FSlateIcon Icon =
 #if ENGINE_UE5
@@ -24,21 +23,20 @@ void IVersioningDropdownBuilder::Build(FMenuBuilder& MenuBuilder) const {
 		FSlateIcon(FEditorStyle::GetStyleSetName(), "MainFrame.CreditsUnrealEd");
 #endif
 
-	/* A new release is available */
 	if (GReflectionVersioning.IsNewVersionAvailable()) {
 		Text = FText::FromString("New Version Available");
-		
+
 		Tooltip = FText::FromString("Update your installation to version " + GReflectionVersioning.VersionName);
 
 		Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Cascade.AddLODBeforeCurrent.Small");
 	} else if (GReflectionVersioning.IsFutureVersion()) {
 		Text = FText::FromString("Developmental");
-		
+
 		Tooltip = FText::FromString("You are currently running a developmental build");
-		
+
 	} else {
 		Text = FText::FromString("Latest");
-		
+
 		Tooltip = FText::FromString("You are currently using the latest version");
 	}
 
@@ -55,6 +53,6 @@ void IVersioningDropdownBuilder::Build(FMenuBuilder& MenuBuilder) const {
 		),
 		NAME_None
 	);
-	
+
 	MenuBuilder.EndSection();
 }

@@ -1,5 +1,4 @@
-/* Copyright Reflection Contributors 2024-2026 */
-
+#include "Engine/SharedPtrCompatibility.h"
 #include "Modules/UI/Reflect/SReflectFolderDialog.h"
 
 #include "Engine/Compatibility.h"
@@ -7,6 +6,9 @@
 #include "Modules/Cloud/Cloud.h"
 #include "Modules/Cloud/Remote.h"
 #include "Utilities/ContentBrowser.h"
+#include "Containers/Export.h"
+#include "Utilities/Dialog.h"
+#include "Modules/UI/Reflect/SReflectTypeFilterDialog.h"
 
 #include "Interfaces/IMainFrameModule.h"
 #include "Framework/Application/SlateApplication.h"
@@ -22,7 +24,20 @@
 
 #define LOCTEXT_NAMESPACE "Reflection.ReflectFolder"
 
-bool SReflectFolderDialog::Open(TArray<FString>& OutPaths) {
+static FString ToFolderPath(FString Path) {
+	Path.TrimStartAndEndInline();
+	Path.ReplaceInline(TEXT("\\"), TEXT("/"));
+
+	if (FString Leaf; Path.Split(TEXT("/"), nullptr, &Leaf, ESearchCase::IgnoreCase, ESearchDir::FromEnd) && Leaf.Contains(TEXT("."))) {
+		Path.Split(TEXT("/"), &Path, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+	}
+
+	Path.RemoveFromEnd(TEXT("/"));
+
+	return Path;
+}
+
+EReflectFolderChoice SReflectFolderDialog::Open(TArray<FString>& OutPaths, TSet<FString>& OutAllowedTypes, const FString& InitialFolder, const bool bUseClipboard, const bool bCanGoBack) {
 	const TSharedRef<SWindow> Window = SNew(SWindow)
 		.Title(LOCTEXT("Title", "Reflect Folder"))
 		.ClientSize(FVector2D(720.0f, 480.0f))
@@ -34,18 +49,26 @@ bool SReflectFolderDialog::Open(TArray<FString>& OutPaths) {
 	Window->SetContent(
 		SAssignNew(Dialog, SReflectFolderDialog)
 		.ParentWindow(Window)
+		.InitialFolder(InitialFolder)
+		.UseClipboard(bUseClipboard)
+		.CanGoBack(bCanGoBack)
 	);
 
 	const IMainFrameModule& MainFrameModule = IMainFrameModule::Get();
 	FSlateApplication::Get().AddModalWindow(Window, MainFrameModule.GetParentWindow());
 
+	if (Dialog->BackRequested) {
+		return EReflectFolderChoice::Back;
+	}
+
 	if (!Dialog->Accepted) {
-		return false;
+		return EReflectFolderChoice::Cancelled;
 	}
 
 	OutPaths = Dialog->Paths;
+	OutAllowedTypes = Dialog->AllowedTypes;
 
-	return OutPaths.Num() > 0;
+	return OutPaths.Num() > 0 ? EReflectFolderChoice::Reflect : EReflectFolderChoice::Cancelled;
 }
 
 void SReflectFolderDialog::Construct(const FArguments& InArgs) {
@@ -55,7 +78,6 @@ void SReflectFolderDialog::Construct(const FArguments& InArgs) {
 	[
 		SNew(SVerticalBox)
 
-		/* Folder ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		[
@@ -65,7 +87,6 @@ void SReflectFolderDialog::Construct(const FArguments& InArgs) {
 			[
 				SNew(SHorizontalBox)
 
-				/* Fills the box, so it sits on the side the folder comes in from */
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
@@ -88,7 +109,6 @@ void SReflectFolderDialog::Construct(const FArguments& InArgs) {
 					.OnTextCommitted(this, &SReflectFolderDialog::OnFolderCommitted)
 				]
 
-				/* Next to the box it acts on */
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
@@ -103,7 +123,6 @@ void SReflectFolderDialog::Construct(const FArguments& InArgs) {
 			]
 		]
 
-		/* What was found ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 		+ SVerticalBox::Slot()
 		.FillHeight(1.0f)
 		.Padding(FMargin(8.0f, 6.0f))
@@ -119,14 +138,35 @@ void SReflectFolderDialog::Construct(const FArguments& InArgs) {
 			]
 		]
 
-		/* Footer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding(FMargin(8.0f, 0.0f, 8.0f, 8.0f))
 		[
 			SNew(SHorizontalBox)
 
-			/* Under the list it counts, on the same line as the button it qualifies */
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(0.0f, 0.0f, 6.0f, 0.0f))
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("Back", "Back"))
+				.ToolTipText(LOCTEXT("BackTooltip", "Back to the reflect window. Nothing listed here comes with it."))
+				.Visibility(this, &SReflectFolderDialog::GetBackVisibility)
+				.OnClicked(this, &SReflectFolderDialog::OnBackClicked)
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(0.0f, 0.0f, 6.0f, 0.0f))
+			[
+				SNew(SButton)
+				.Text(this, &SReflectFolderDialog::GetTypesText)
+				.ToolTipText(LOCTEXT("TypesTooltip", "Choose which asset types the run is allowed to build. Every type by default.\n\nThis covers what the folder listed. Assets those reference still come down with them, or what did come down would be missing pieces."))
+				.OnClicked(this, &SReflectFolderDialog::OnTypesClicked)
+			]
+
 			+ SHorizontalBox::Slot()
 			.FillWidth(1.0f)
 			.VAlign(VAlign_Center)
@@ -148,27 +188,51 @@ void SReflectFolderDialog::Construct(const FArguments& InArgs) {
 		]
 	];
 
-	/* Whatever is selected in the Content Browser is usually what this was opened for */
-	const FString SelectedFolder = GetSelectedContentBrowserFolder();
+	CanGoBack = InArgs._CanGoBack;
+
+	FString SelectedFolder = InArgs._InitialFolder;
+
+	if (SelectedFolder.IsEmpty() && InArgs._UseClipboard) {
+		const FString Clipboard = GetClipboard().TrimStartAndEnd();
+
+		if (IsAssetPathLike(Clipboard)) {
+			SelectedFolder = ToFolderPath(StripObjectOuter(Clipboard));
+		}
+	}
 
 	if (!SelectedFolder.IsEmpty()) {
 		FolderBox->SetText(FText::FromString(SelectedFolder));
+
+		Find();
 	}
 
 	FSlateApplication::Get().SetKeyboardFocus(FolderBox);
 }
 
-/* Actions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 void SReflectFolderDialog::OnFolderCommitted(const FText& NewText, const ETextCommit::Type CommitType) {
-	/* Enter in the box is the same as pressing Find, so a folder can be pasted and listed
-	 * without reaching for the mouse */
 	if (CommitType == ETextCommit::OnEnter) {
 		Find();
 	}
 }
 
+FReply SReflectFolderDialog::OnBackClicked() {
+	BackRequested = true;
+
+	if (ParentWindow.IsValid()) {
+		ParentWindow->RequestDestroyWindow();
+	}
+
+	return FReply::Handled();
+}
+
 FReply SReflectFolderDialog::OnFindClicked() {
 	Find();
+
+	return FReply::Handled();
+}
+
+FReply SReflectFolderDialog::OnTypesClicked() {
+	SReflectTypeFilterDialog::Open(AllowedTypes);
 
 	return FReply::Handled();
 }
@@ -179,7 +243,6 @@ FReply SReflectFolderDialog::OnUseSelectedFolderClicked() {
 	if (!SelectedFolder.IsEmpty()) {
 		FolderBox->SetText(FText::FromString(SelectedFolder));
 
-		/* The folder changed under it, so what the list is showing is no longer the answer */
 		Rows.Reset();
 		Paths.Reset();
 		Searched = false;
@@ -201,7 +264,7 @@ FReply SReflectFolderDialog::OnReflectClicked() {
 }
 
 void SReflectFolderDialog::Find() {
-	const FString Folder = FolderBox->GetText().ToString().TrimStartAndEnd();
+	const FString Folder = ToFolderPath(FolderBox->GetText().ToString());
 
 	Rows.Reset();
 	Paths.Reset();
@@ -227,13 +290,16 @@ void SReflectFolderDialog::Find() {
 	ListView->RequestListRefresh();
 }
 
-/* State ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 bool SReflectFolderDialog::CanFind() const {
 	return FolderBox.IsValid() && !FolderBox->GetText().ToString().TrimStartAndEnd().IsEmpty();
 }
 
 bool SReflectFolderDialog::CanReflect() const {
 	return Paths.Num() > 0;
+}
+
+EVisibility SReflectFolderDialog::GetBackVisibility() const {
+	return CanGoBack ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 bool SReflectFolderDialog::HasSelectedFolder() const {
@@ -260,6 +326,14 @@ FText SReflectFolderDialog::GetStatusText() const {
 	}
 
 	return FText::Format(LOCTEXT("StatusFoundFmt", "{0} asset(s)"), FText::AsNumber(Paths.Num()));
+}
+
+FText SReflectFolderDialog::GetTypesText() const {
+	if (AllowedTypes.Num() == 0) {
+		return LOCTEXT("TypesAll", "All Types");
+	}
+
+	return FText::Format(LOCTEXT("TypesSomeFmt", "{0} Types"), FText::AsNumber(AllowedTypes.Num()));
 }
 
 FText SReflectFolderDialog::GetReflectText() const {
