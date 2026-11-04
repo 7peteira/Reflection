@@ -28,7 +28,7 @@
 /wd4838
 /we4668
 /I .
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Private
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Private
 /I Runtime
 /I Runtime\Projects\Public
 /I Runtime\Projects
@@ -447,49 +447,49 @@
 /I Editor\AnimGraph\Classes
 /I Editor\AnimGraph\Public
 /I Editor\AnimGraph
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\ThirdParty
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\ThirdParty\Detex\ThirdParty\detex
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\ThirdParty\Detex
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\ThirdParty\NVTT\ThirdParty\nvtt
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\ThirdParty\NVTT
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Inc\Reflection
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Containers
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Engine
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Constructor
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Constructor\Graph
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Constructor\Registry
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Animation
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Audio
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Blueprint
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Cascade
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Curves
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Materials
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Physics
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Tables
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Texture
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\UserDefined
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Cloud
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Cloud\Tools
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Toolbar
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Toolbar\Dropdowns
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Toolbar\Tools
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Tools
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\UI
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\UI\Reflect
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\UI\SupportedAssets
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\UI\Validation
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Validation
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Serializers
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Serializers\Structs
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Settings
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Settings\Types
-/I D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Utilities
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\ThirdParty
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\ThirdParty\Detex\ThirdParty\detex
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\ThirdParty\Detex
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\ThirdParty\NVTT\ThirdParty\nvtt
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\ThirdParty\NVTT
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Inc\Reflection
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Containers
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Engine
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Constructor
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Constructor\Graph
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Constructor\Registry
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Animation
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Audio
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Blueprint
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Cascade
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Curves
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Materials
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Physics
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Tables
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\Texture
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Importers\Types\UserDefined
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Cloud
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Cloud\Tools
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Toolbar
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Toolbar\Dropdowns
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Toolbar\Tools
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Tools
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\UI
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\UI\Reflect
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\UI\SupportedAssets
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\UI\Validation
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Modules\Validation
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Serializers
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Serializers\Structs
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Settings
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Settings\Types
+/I C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Source\Reflection\Public\Utilities
 /I ..\Intermediate\Build\Win64\UE4Editor\Inc\JsonUtilities
 /I Runtime\JsonUtilities\Public
 /I Runtime\JsonUtilities
@@ -570,9 +570,9 @@
 /I "C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\shared"
 /I "C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\um"
 /I "C:\Program Files (x86)\Windows Kits\10\include\10.0.19041.0\winrt"
-"D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\Module.Reflection.cpp"
-/FI"D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\Definitions.h"
-/Fo"D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\Module.Reflection.cpp.obj"
+"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\Module.Reflection.cpp"
+/FI"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\Definitions.h"
+/Fo"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\Module.Reflection.cpp.obj"
 /TP
 /GR-
 /W4

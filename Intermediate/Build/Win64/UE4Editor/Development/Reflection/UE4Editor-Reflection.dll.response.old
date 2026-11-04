@@ -32,8 +32,8 @@
 /NODEFAULTLIB:"LIBCD"
 /NODEFAULTLIB:"LIBCPD"
 /FUNCTIONPADMIN
-"D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\Module.Reflection.cpp.obj"
-"D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\Module.Reflection.gen.cpp.obj"
+"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\Module.Reflection.cpp.obj"
+"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\Module.Reflection.gen.cpp.obj"
 "D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\Default.rc2.res"
 "delayimp.lib"
 "wininet.lib"
@@ -76,8 +76,8 @@
 "D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\AnimGraph\UE4Editor-AnimGraph.lib"
 "D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\GraphEditor\UE4Editor-GraphEditor.lib"
 "D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\BlueprintGraph\UE4Editor-BlueprintGraph.lib"
-"D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\ReflectionDetex\UE4Editor-ReflectionDetex.lib"
-"D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\ReflectionNVTT\UE4Editor-ReflectionNVTT.lib"
+"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\ReflectionDetex\UE4Editor-ReflectionDetex.lib"
+"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\ReflectionNVTT\UE4Editor-ReflectionNVTT.lib"
 "D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\Core\UE4Editor-Core.lib"
 "D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\Json\UE4Editor-Json.lib"
 "D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\JsonUtilities\UE4Editor-JsonUtilities.lib"
@@ -91,8 +91,8 @@
 "D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\UMGEditor\UE4Editor-UMGEditor.lib"
 "D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\MovieScene\UE4Editor-MovieScene.lib"
 "D:\Engine\Windows\Engine\Intermediate\Build\Win64\UE4Editor\Development\ClothingSystemRuntime\UE4Editor-ClothingSystemRuntime.lib"
-/OUT:"D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Binaries\Win64\UE4Editor-Reflection.dll"
-/IMPLIB:"D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\UE4Editor-Reflection.suppressed.lib"
-/PDB:"D:\Pickaxe-Proj-9.10-main\5\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Binaries\Win64\UE4Editor-Reflection.pdb"
+/OUT:"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Binaries\Win64\UE4Editor-Reflection.dll"
+/IMPLIB:"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Intermediate\Build\Win64\UE4Editor\Development\Reflection\UE4Editor-Reflection.suppressed.lib"
+/PDB:"C:\Users\salva\OneDrive\Documentos\Pickaxe-Proj-9.10-main\Plugins\Reflection-2535687a55e651447a8d0c0f80f4888e03b92a8c\Binaries\Win64\UE4Editor-Reflection.pdb"
 /ignore:4078
 /INCLUDE:IMPLEMENT_MODULE_Reflection

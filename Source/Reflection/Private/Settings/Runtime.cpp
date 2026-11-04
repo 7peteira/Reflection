@@ -1,3 +1,4 @@
+
 /* Copyright Reflection Contributors 2024-2026 */
 
 #include "Settings/Runtime.h"
@@ -25,8 +26,10 @@ void FRRuntime::Update() {
 	FString AppDataPath = FPlatformMisc::GetEnvironmentVariable(TEXT("APPDATA"));
 	AppDataPath = FPaths::Combine(AppDataPath, TEXT("FModel/AppSettings.json"));
 
-	if (FString FileContent; FFileHelper::LoadFileToString(FileContent, *AppDataPath)) {
-		if (TSharedPtr<FJsonObject> JsonObject; DeserializeJSONObject(FileContent, JsonObject)) {
+	FString FileContent;
+	if (FFileHelper::LoadFileToString(FileContent, *AppDataPath)) {
+		TSharedPtr<FJsonObject> JsonObject;
+		if (DeserializeJSONObject(FileContent, JsonObject)) {
 			ExportDirectory.Path = JsonObject->GetStringField(TEXT("PropertiesDirectory")).Replace(TEXT("\\"), TEXT("/"));
 		}
 	}

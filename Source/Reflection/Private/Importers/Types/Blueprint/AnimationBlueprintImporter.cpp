@@ -72,12 +72,16 @@ bool IAnimationBlueprintImporter::Import() {
 	/* The variables the blueprint declares have to exist before the class default object below can
 	 * put anything in them. ChildProperties holds them alongside the anim graph node state, which
 	 * FBlueprintVariables filters out. */
-	if (const TArray<TSharedPtr<FJsonValue>>* ChildProperties; GetAssetExport()->TryGetArrayField(TEXT("ChildProperties"), ChildProperties)) {
-		if (FBlueprintVariables::Construct(AnimBlueprint, *ChildProperties) > 0) {
-			/* The properties only appear on the generated class once it recompiles */
-			FKismetEditorUtilities::CompileBlueprint(AnimBlueprint, EBlueprintCompileOptions::SkipGarbageCollection);
-		}
-	}
+const TArray<TSharedPtr<FJsonValue>>* ChildProperties = nullptr;
+
+if (GetAssetExport()->TryGetArrayField(TEXT("ChildProperties"), ChildProperties)) {
+    if (FBlueprintVariables::Construct(AnimBlueprint, *ChildProperties) > 0) {
+        FKismetEditorUtilities::CompileBlueprint(
+            AnimBlueprint,
+            EBlueprintCompileOptions::SkipGarbageCollection
+        );
+    }
+}
 
 	/* UClass::GetDefaultObject only became const later on */
 #if UE4_24_BELOW

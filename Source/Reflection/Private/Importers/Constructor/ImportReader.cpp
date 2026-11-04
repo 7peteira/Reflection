@@ -1,3 +1,4 @@
+
 /* Copyright Reflection Contributors 2024-2026 */
 
 #include "Importers/Constructor/ImportReader.h"
@@ -13,181 +14,220 @@
 #include "Utilities/JsonHelpers.h"
 #include "Modules/Cloud/Remote.h"
 
-bool IImportReader::ReadExportsAndImport(const TArray<TSharedPtr<FJsonValue>>& Exports, const FString& File, IImporter*& OutImporter, const bool HideNotifications, bool bUseRelativePath) {
-	/* Importers resolve references through the Cloud while they deserialize, and those requests
-	 * have nowhere to put a callback, so they get waited on. The scope is what keeps the editor
-	 * drawn and cancellable for as long as this import needs the Cloud. */
-	const FBlockingRequestScope BlockingScope(FText::Format(
-		NSLOCTEXT("Reflection", "CloudImporting", "Reflecting {0}"),
-		FText::FromString(FPaths::GetCleanFilename(File))
-	));
+bool IImportReader::ReadExportsAndImport(
+    const TArray<TSharedPtr<FJsonValue>>& Exports,
+    const FString& File,
+    IImporter*& OutImporter,
+    const bool HideNotifications,
+    bool bUseRelativePath)
+{
+    /* Importers resolve references through the Cloud while they deserialize, and those requests
+     * have nowhere to put a callback, so they get waited on. The scope is what keeps the editor
+     * drawn and cancellable for as long as this import needs the Cloud. */
+    const FBlockingRequestScope BlockingScope(FText::Format(
+        NSLOCTEXT("Reflection", "CloudImporting", "Reflecting {0}"),
+        FText::FromString(FPaths::GetCleanFilename(File))
+    ));
 
-	FUObjectExportContainer* Container = new FUObjectExportContainer(Exports);
+    FUObjectExportContainer* Container = new FUObjectExportContainer(Exports);
 
-	const bool IsBlueprint = Container->FindByType(FString("BlueprintGeneratedClass"))->IsJsonValid();
-	
-	for (FUObjectExport* Export : Container->Exports) {
-		if (IsBlueprint) {
-			if (Export->GetType() != "BlueprintGeneratedClass") continue;
-		}
-		
-		if (IImporter* Importer = ReadExportAndImport(Container, Export, File, HideNotifications, bUseRelativePath)) OutImporter = Importer;
-	}
+    const bool IsBlueprint =
+        Container->FindByType(FString("BlueprintGeneratedClass"))->IsJsonValid();
 
-	return true;
+    for (FUObjectExport* Export : Container->Exports) {
+        if (IsBlueprint) {
+            if (Export->GetType() != "BlueprintGeneratedClass") continue;
+        }
+
+        if (IImporter* Importer = ReadExportAndImport(
+            Container, Export, File, HideNotifications, bUseRelativePath))
+        {
+            OutImporter = Importer;
+        }
+    }
+
+    return true;
 }
 
-IImporter* IImportReader::ReadExportAndImport(FUObjectExportContainer* Container, FUObjectExport* Export, FString File, const bool HideNotifications, bool bUseRelativePath) {
-	const FString Type = Export->GetType().ToString();
-	FString Name = Export->GetName().ToString();
+IImporter* IImportReader::ReadExportAndImport(
+    FUObjectExportContainer* Container,
+    FUObjectExport* Export,
+    FString File,
+    const bool HideNotifications,
+    bool bUseRelativePath)
+{
+    const FString Type = Export->GetType().ToString();
+    FString Name = Export->GetName().ToString();
 
-	const bool IsBlueprint = Type.Contains("BlueprintGeneratedClass");
+    const bool IsBlueprint = Type.Contains("BlueprintGeneratedClass");
 
-	/* BlueprintGeneratedClass is post-fixed with _C */
-	if (IsBlueprint) {
-		Name.Split("_C", &Name, nullptr, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-	}
+    /* BlueprintGeneratedClass is post-fixed with _C */
+    if (IsBlueprint) {
+        Name.Split("_C", &Name, nullptr, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+    }
 
-	const UClass* Class = FindClassByType(Type);
-	
-	if (Class == nullptr) return nullptr;
+    const UClass* Class = FindClassByType(Type);
 
-	/* Check if this export can be imported */
-	const bool InheritsDataAsset = Class->IsChildOf(UDataAsset::StaticClass());
-	if (!CanImport(Type, false, Class)) return nullptr;
+    if (Class == nullptr) return nullptr;
 
-	if (bUseRelativePath) {
-		/* Convert from relative path to full path */
-		if (FPaths::IsRelative(File)) File = FPaths::ConvertRelativePathToFull(File);
-	}
+    /* Check if this export can be imported */
+    const bool InheritsDataAsset = Class->IsChildOf(UDataAsset::StaticClass());
+    if (!CanImport(Type, false, Class)) return nullptr;
 
-	FString FailureReason;
-	UPackage* LocalPackage = FAssetUtilities::CreateAssetPackage(Name, File, FailureReason);
+    if (bUseRelativePath) {
+        /* Convert from relative path to full path */
+        if (FPaths::IsRelative(File)) {
+            File = FPaths::ConvertRelativePathToFull(File);
+        }
+    }
 
-	if (LocalPackage == nullptr) {
-		/* Try fixing our Export Directory Settings using the provided File directory if local package not found */
+    FString FailureReason;
+    UPackage* LocalPackage = FAssetUtilities::CreateAssetPackage(Name, File, FailureReason);
+
+    if (LocalPackage == nullptr) {
+        /* Try fixing our Export Directory Settings using the provided File directory if local package not found */
         UReflectionSettings* PluginSettings = GetSettings();
 
-		GReflectionRuntime.Update();
-		LocalPackage = FAssetUtilities::CreateAssetPackage(Name, File, FailureReason);
+        GReflectionRuntime.Update();
+        LocalPackage = FAssetUtilities::CreateAssetPackage(Name, File, FailureReason);
 
-		if (LocalPackage == nullptr) {
-			FString ExportDirectoryCache = GReflectionRuntime.ExportDirectory.Path;
-		
-			if (FString DirectoryPathFix; File.Split(TEXT("Output/Exports/"), &DirectoryPathFix, nullptr, ESearchCase::IgnoreCase, ESearchDir::FromEnd)) {
-				DirectoryPathFix = DirectoryPathFix + TEXT("Output/Exports");
+        if (LocalPackage == nullptr) {
+            FString ExportDirectoryCache = GReflectionRuntime.ExportDirectory.Path;
 
-				GReflectionRuntime.ExportDirectory.Path = DirectoryPathFix;
-				SavePluginSettings(PluginSettings);
+            /* UE4.23 compatibility: declare the variable before the if statement */
+            FString DirectoryPathFix;
 
-				/* Retry creating the asset package */
-				LocalPackage = FAssetUtilities::CreateAssetPackage(Name, File, FailureReason);
+            if (File.Split(
+                TEXT("Output/Exports/"),
+                &DirectoryPathFix,
+                nullptr,
+                ESearchCase::IgnoreCase,
+                ESearchDir::FromEnd))
+            {
+                DirectoryPathFix = DirectoryPathFix + TEXT("Output/Exports");
 
-				/* Undo the change if unsuccessful */
-				if (LocalPackage == nullptr) {
-					GReflectionRuntime.ExportDirectory.Path = ExportDirectoryCache;
+                GReflectionRuntime.ExportDirectory.Path = DirectoryPathFix;
+                SavePluginSettings(PluginSettings);
 
-					SavePluginSettings(PluginSettings);
-				}
-			}
-		}
-	}
+                /* Retry creating the asset package */
+                LocalPackage = FAssetUtilities::CreateAssetPackage(Name, File, FailureReason);
 
-	if (LocalPackage == nullptr) {
-		AppendNotification(
-			FText::FromString("Failed: " + Type),
-			FText::FromString(FailureReason),
-			4.0f,
-			FSlateIconFinder::FindCustomIconBrushForClass(FindObject<UClass>(nullptr, *("/Script/Engine." + Type)), TEXT("ClassThumbnail")),
-			SNotificationItem::CS_Fail,
-			false,
-			350.0f
-		);
+                /* Undo the change if unsuccessful */
+                if (LocalPackage == nullptr) {
+                    GReflectionRuntime.ExportDirectory.Path = ExportDirectoryCache;
 
-		return nullptr;
-	}
+                    SavePluginSettings(PluginSettings);
+                }
+            }
+        }
+    }
 
-	/* Importer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-	IImporter* Importer = nullptr;
-	
-	/* Try to find the importer using a factory delegate */
-	if (const FImporterFactoryDelegate* Factory = FindFactoryForAssetType(Type)) {
-		Importer = (*Factory)();
-	}
+    if (LocalPackage == nullptr) {
+        AppendNotification(
+            FText::FromString("Failed: " + Type),
+            FText::FromString(FailureReason),
+            4.0f,
+            FSlateIconFinder::FindCustomIconBrushForClass(
+                FindObject<UClass>(nullptr, *("/Script/Engine." + Type)),
+                TEXT("ClassThumbnail")),
+            SNotificationItem::CS_Fail,
+            false,
+            350.0f
+        );
 
-	/* If it inherits DataAsset, use the data asset importer */
-	if (Importer == nullptr && InheritsDataAsset) {
-		Importer = new IDataAssetImporter();
-	}
+        return nullptr;
+    }
 
-	/* By default, (with no existing importer) use the templated importer with the asset class. */
-	if (Importer == nullptr) {
-		Importer = new ITemplatedImporter<UObject>();
-	}
+    /* Importer ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+    IImporter* Importer = nullptr;
 
-	Export->Package = LocalPackage;
-	Importer->Initialize(Export, Container);
+    /* Try to find the importer using a factory delegate */
+    if (const FImporterFactoryDelegate* Factory = FindFactoryForAssetType(Type)) {
+        Importer = (*Factory)();
+    }
 
-	/* Import the asset ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-	bool Successful = false; {
-		try {
-			Successful = Importer->Import();
-		} catch (const char* Exception) {
-			UE_LOG(LogReflection, Error, TEXT("Importer exception: %s"), *FString(Exception));
-		}
-	}
+    /* If it inherits DataAsset, use the data asset importer */
+    if (Importer == nullptr && InheritsDataAsset) {
+        Importer = new IDataAssetImporter();
+    }
 
-	if (HideNotifications) {
-		return Importer;
-	}
+    /* By default, (with no existing importer) use the templated importer with the asset class. */
+    if (Importer == nullptr) {
+        Importer = new ITemplatedImporter<UObject>();
+    }
 
-	FString ClassIconType = Type;
+    Export->Package = LocalPackage;
+    Importer->Initialize(Export, Container);
 
-	if (Type.Contains("GeneratedClass")) {
-		Type.Split("GeneratedClass", &ClassIconType, nullptr);
-	}
+    /* Import the asset ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+    bool Successful = false;
+    {
+        try {
+            Successful = Importer->Import();
+        }
+        catch (const char* Exception) {
+            UE_LOG(LogReflection, Error, TEXT("Importer exception: %s"), *FString(Exception));
+        }
+    }
 
-	if (Successful) {
-		UE_LOG(LogReflection, Log, TEXT("Successfully reflected \"%s\" as \"%s\""), *Name, *Type);
+    if (HideNotifications) {
+        return Importer;
+    }
 
-		/* Successful Notification */
-		AppendNotification(
-			FText::FromString("Reflected: " + Name),
-			FText::FromString(Type),
-			2.0f,
-			FSlateIconFinder::FindCustomIconBrushForClass(FindObject<UClass>(nullptr, *("/Script/Engine." + ClassIconType)), TEXT("ClassThumbnail")),
-			SNotificationItem::CS_Success,
-			false,
-			350.0f
-		);
-	} else {
-		/* Failed Notification */
-		AppendNotification(
-			FText::FromString("Failed: " + Name),
-			FText::FromString(Type),
-			2.0f,
-			FSlateIconFinder::FindCustomIconBrushForClass(FindObject<UClass>(nullptr, *("/Script/Engine." + ClassIconType)), TEXT("ClassThumbnail")),
-			SNotificationItem::CS_Fail,
-			false,
-			350.0f
-		);
-	}
+    FString ClassIconType = Type;
 
-	return Importer;
+    if (Type.Contains("GeneratedClass")) {
+        Type.Split("GeneratedClass", &ClassIconType, nullptr);
+    }
+
+    if (Successful) {
+        UE_LOG(LogReflection, Log, TEXT("Successfully reflected \"%s\" as \"%s\""), *Name, *Type);
+
+        /* Successful Notification */
+        AppendNotification(
+            FText::FromString("Reflected: " + Name),
+            FText::FromString(Type),
+            2.0f,
+            FSlateIconFinder::FindCustomIconBrushForClass(
+                FindObject<UClass>(nullptr, *("/Script/Engine." + ClassIconType)),
+                TEXT("ClassThumbnail")),
+            SNotificationItem::CS_Success,
+            false,
+            350.0f
+        );
+    }
+    else {
+        /* Failed Notification */
+        AppendNotification(
+            FText::FromString("Failed: " + Name),
+            FText::FromString(Type),
+            2.0f,
+            FSlateIconFinder::FindCustomIconBrushForClass(
+                FindObject<UClass>(nullptr, *("/Script/Engine." + ClassIconType)),
+                TEXT("ClassThumbnail")),
+            SNotificationItem::CS_Fail,
+            false,
+            350.0f
+        );
+    }
+
+    return Importer;
 }
 
 IImporter* IImportReader::ImportReference(const FString& File) {
-	FString FilePath = File;
-	if (FilePath.Contains("\\")) {
-		FilePath = File.Replace(TEXT("\\"), TEXT("/"));
-	}
-	
-	TArray<TSharedPtr<FJsonValue>> DataObjects; {
-		DeserializeJSON(FilePath, DataObjects);
-	}
+    FString FilePath = File;
 
-	IImporter* Importer = nullptr;
-	ReadExportsAndImport(DataObjects, FilePath, Importer);
-	
-	return Importer;
+    if (FilePath.Contains("\\")) {
+        FilePath = File.Replace(TEXT("\\"), TEXT("/"));
+    }
+
+    TArray<TSharedPtr<FJsonValue>> DataObjects;
+    {
+        DeserializeJSON(FilePath, DataObjects);
+    }
+
+    IImporter* Importer = nullptr;
+    ReadExportsAndImport(DataObjects, FilePath, Importer);
+
+    return Importer;
 }

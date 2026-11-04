@@ -1,3 +1,4 @@
+
 /* Copyright Reflection Contributors 2024-2026 */
 
 #include "Serializers/PropertySerializer.h"
@@ -23,23 +24,12 @@ DECLARE_LOG_CATEGORY_CLASS(LogReflectionPropertySerializer, Error, Log);
 /* Material Attributes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 namespace {
-	/* 4.25 ~~> 425, 5.3 ~~> 503. Only ever compared against another one of these. */
 	constexpr int32 ToVersionKey(const int32 Major, const int32 Minor) {
 		return Major * 100 + Minor;
 	}
 
-	/* The outputs of a BreakMaterialAttributes node, in the order the node lists them, against the
-	 * engines each one is there for. Read out of the engine sources rather than worked out from a
-	 * material: 4.16 through 5.7 all lay the common attributes out in this same relative order and
-	 * only ever add one or drop one, which is the whole reason an index recorded against one
-	 * engine can be named on another.
-	 *
-	 * Anisotropy and Tangent arrive in 4.25, ShadingModel in 4.23, Displacement in 5.3.
-	 * WorldDisplacement and TessellationMultiplier leave with tessellation in 5.0. */
 	struct FBreakAttributeSlot {
 		const TCHAR* Name;
-
-		/* Version keys, 0 meaning no bound on that end */
 		int32 First;
 		int32 Last;
 
@@ -80,7 +70,6 @@ namespace {
 		{ TEXT("Displacement"),           503, 0   },
 	};
 
-	/* What the engine the json came from called the output sitting at this index */
 	FString GetSourceBreakOutputName(const int32 OutputIndex) {
 		if (OutputIndex < 0 || GReflectionRuntime.MajorVersion <= 0 || GReflectionRuntime.MinorVersion < 0) {
 			return FString();
@@ -105,9 +94,6 @@ namespace {
 		return FString();
 	}
 
-	/* Where the same attribute sits on the node this engine built, asked of the node itself. The
-	 * outputs are named in the constructor of every version, so this side needs nothing written
-	 * down: whatever this engine put in the list is what the index has to end up matching. */
 	int32 FindBreakOutputIndex(const UMaterialExpression* Break, const FString& Name) {
 		for (int32 Index = 0; Index < Break->Outputs.Num(); Index++) {
 			if (OutputNameToString(Break->Outputs[Index].OutputName) == Name) {
@@ -118,13 +104,6 @@ namespace {
 		return INDEX_NONE;
 	}
 
-	/* An input reading a BreakMaterialAttributes names its attribute by position, and the list it
-	 * is a position into is not the same list on every engine. Ported straight across, an input
-	 * lands on whichever attribute happens to sit at that index here, which is the graph coming
-	 * out wired one or two pins off all the way down.
-	 *
-	 * The index is turned back into the attribute it meant on the engine that wrote it, then asked
-	 * for again by name here. */
 	void RemapBreakMaterialAttributesOutput(FExpressionInput* Input) {
 		if (Input == nullptr || Input->Expression == nullptr) {
 			return;
@@ -136,16 +115,12 @@ namespace {
 
 		const FString AttributeName = GetSourceBreakOutputName(Input->OutputIndex);
 
-		/* No metadata to say which engine this came from, so there is nothing to map between */
 		if (AttributeName.IsEmpty()) {
 			return;
 		}
 
 		const int32 TargetIndex = FindBreakOutputIndex(Input->Expression, AttributeName);
 
-		/* An attribute this engine does not have. Leaving the index where it is would read some
-		 * unrelated attribute instead, and there is no honest answer to give, so the wire comes
-		 * off and the input falls back to whatever the node it sits on defaults to.  */
 		if (TargetIndex == INDEX_NONE) {
 			UE_LOG(LogReflectionPropertySerializer, Warning, TEXT("Disconnected a material attribute input: this engine has no \"%s\""), *AttributeName);
 
@@ -159,9 +134,6 @@ namespace {
 	}
 }
 
-/* An object property takes whatever pointer it is handed without checking the type, so anything
- * that resolves to the wrong class lands in the property and is only discovered when something
- * calls through it, by which point the editor is already gone. */
 static void SetObjectPropertyValueChecked(const FObjectPropertyBase* ObjectProperty, void* OutValue, UObject* Object) {
 	if (Object != nullptr && ObjectProperty->PropertyClass != nullptr && !Object->IsA(ObjectProperty->PropertyClass)) {
 		UE_LOG(LogReflectionPropertySerializer, Warning, TEXT("Skipped '%s': '%s' is a %s, not a %s."),
@@ -174,10 +146,6 @@ static void SetObjectPropertyValueChecked(const FObjectPropertyBase* ObjectPrope
 }
 
 void UPropertySerializer::RemapConvertOutput(const UStruct* Struct, void* StructValue) const {
-	/* Matched by shape rather than by type: an expression connects through FExpressionInput, the
-	 * material's own inputs through FColorMaterialInput and friends, and which of those are
-	 * separate reflected structs (and whether they share a reflected base) changes by version.
-	 * Everything that carries a connection has both of these. */
 	FObjectProperty* ExpressionProperty = FindFProperty<FObjectProperty>(Struct, TEXT("Expression"));
 	FIntProperty* OutputIndexProperty = FindFProperty<FIntProperty>(Struct, TEXT("OutputIndex"));
 
@@ -197,7 +165,6 @@ void UPropertySerializer::RemapConvertOutput(const UStruct* Struct, void* Struct
 		return;
 	}
 
-	/* Each root has the one output, so the index the convert node was asked for is spent here */
 	ExpressionProperty->SetObjectPropertyValue(ExpressionValue, (*Roots)[*OutputIndexValue]);
 	*OutputIndexValue = 0;
 }
@@ -226,16 +193,16 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 	const FArrayProperty* ArrayProperty = CastField<const FArrayProperty>(Property);
 
 	TSharedRef<FJsonValue> NewJsonValue = JsonValue;
-	
+
 	if (BlacklistedPropertyNames.Contains(Property->GetName())) {
 		return;
 	}
-	
+
 	if (MapProperty) {
 		if (NewJsonValue->IsNull()) {
 			return;
 		}
-		
+
 		FProperty* KeyProperty = MapProperty->KeyProp;
 		FProperty* ValueProperty = MapProperty->ValueProp;
 		FScriptMapHelper MapHelper(MapProperty, OutValue);
@@ -248,7 +215,6 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 			const int32 Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
 			uint8* PairPtr = MapHelper.GetPairPtr(Index);
 
-			/* Copy over imported key and value from temporary storage */
 			DeserializePropertyValue(KeyProperty, EntryKey.ToSharedRef(), PairPtr);
 			DeserializePropertyValue(ValueProperty, EntryValue.ToSharedRef(), PairPtr + MapHelper.MapLayout.ValueOffset);
 		}
@@ -269,7 +235,6 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 			const int32 NewElementIndex = SetHelper.AddDefaultValue_Invalid_NeedsRehash();
 			uint8* NewElementPtr = SetHelper.GetElementPtr(NewElementIndex);
 
-			/* Copy over imported key from temporary storage */
 			ElementProperty->CopyCompleteValue_InContainer(NewElementPtr, TempElementStorage);
 		}
 		SetHelper.Rehash();
@@ -296,15 +261,13 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 	else if (FSoftObjectProperty* SoftObjectProperty = CastField<FSoftObjectProperty>(Property)) {
 		TSharedPtr<FJsonObject> SoftJsonObjectProperty;
 		FString PathString = "";
-		
+
 		switch (NewJsonValue->Type) {
-			/* UEParse, extract it from the object */
 			case EJson::Object:
 				SoftJsonObjectProperty = NewJsonValue->AsObject();
 				PathString = SoftJsonObjectProperty->GetStringField(TEXT("AssetPathName"));
 			break;
 
-			/* Older game builds */
 			default:
 				PathString = NewJsonValue->AsString();
 			break;
@@ -315,20 +278,18 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 			*ObjectPtr = FSoftObjectPath(PathString);
 
 			if (!ObjectPtr->LoadSynchronous()) {
-				/* Try importing it using Cloud */
 				FString PackagePath;
 				FString AssetName;
 				PathString.Split(".", &PackagePath, &AssetName);
 				TObjectPtr<UObject> T = nullptr;
 
 				FString PropertyClassName = SoftObjectProperty->PropertyClass->GetName();
-				
+
 				IImporter::DownloadWrapper(T, PropertyClassName, AssetName, PackagePath);
 			}
 		}
 	}
 	else if (const FObjectPropertyBase* ObjectProperty = CastField<const FObjectPropertyBase>(Property)) {
-		/* Need to serialize full UObject for object property */
 		TObjectPtr<UObject> Object = nullptr;
 
 		if (NewJsonValue->IsNull()) {
@@ -341,7 +302,7 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 			if (Importer == nullptr) {
 				Importer = new IImporter();
 			}
-			
+
 			Importer->SetParent(ObjectSerializer->Parent);
 			Importer->LoadExport(&JsonValueAsObject, Object);
 
@@ -358,7 +319,7 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 					if (TargetExport->Has(TEXT("LODData"))) {
 						Properties.SetArray(TEXT("LODData"), TargetExport->GetArray(TEXT("LODData")));
 					}
-					
+
 					ObjectSerializer->SpawnExport(TargetExport);
 
 					if (TargetExport->Object) {
@@ -369,7 +330,7 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 
 			if (Object != nullptr) {
 				bool bIsActorComponent = Object.Get()->IsA(UActorComponent::StaticClass());
-				
+
 				if (!bIsActorComponent) {
 					SetObjectPropertyValueChecked(ObjectProperty, OutValue, Object);
 				} else {
@@ -416,7 +377,8 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 			}
 
 			if (ExportsContainer) {
-				if (FUObjectExport* Export = ExportsContainer->Find(ObjectName); Export->IsJsonValid() && Export->Object != nullptr) {
+				FUObjectExport* Export = ExportsContainer->Find(ObjectName);
+				if (Export != nullptr && Export->IsJsonValid() && Export->Object != nullptr) {
 					if (UObject* FoundObject = Export->Object) {
 						SetObjectPropertyValueChecked(ObjectProperty, OutValue, FoundObject);
 					}
@@ -438,8 +400,9 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 				if (ObjectOuter.Contains(":")) {
 					ObjectOuter.Split(":", nullptr, &ObjectOuter);
 				}
-				
-				if (FUObjectExport* Export = ExportsContainer->Find(ObjectName, ObjectOuter); Export->IsJsonValid() && Export->Object != nullptr) {
+
+				FUObjectExport* Export = ExportsContainer->Find(ObjectName, ObjectOuter);
+				if (Export != nullptr && Export->IsJsonValid() && Export->Object != nullptr) {
 					if (UObject* FoundObject = Export->Object) {
 						SetObjectPropertyValueChecked(ObjectProperty, OutValue, FoundObject);
 					}
@@ -450,7 +413,8 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 				if (UObject* Parent = ObjectSerializer->Parent) {
 					FString Name = Parent->GetName();
 
-					if (FUObjectExport* Export = ExportsContainer->Find(ObjectName, Name); Export->IsJsonValid() && Export->Object != nullptr) {
+					FUObjectExport* Export = ExportsContainer->Find(ObjectName, Name);
+					if (Export != nullptr && Export->IsJsonValid() && Export->Object != nullptr) {
 						if (UObject* FoundObject = Export->Object) {
 							SetObjectPropertyValueChecked(ObjectProperty, OutValue, FoundObject);
 						}
@@ -459,14 +423,14 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 			}
 
 			if (ObjectIndex != -1 && ExportsContainer) {
-				if (FUObjectExport* Export = ExportsContainer->FindByPositionAndName(ObjectIndex, ObjectName); Export->IsJsonValid() && Export->Object != nullptr) {
+				FUObjectExport* Export = ExportsContainer->FindByPositionAndName(ObjectIndex, ObjectName);
+				if (Export != nullptr && Export->IsJsonValid() && Export->Object != nullptr) {
 					if (UObject* FoundObject = Export->Object) {
 						SetObjectPropertyValueChecked(ObjectProperty, OutValue, FoundObject);
 					}
 				}
 			}
 
-			/* Too extreme it seems */
 #if 0
 			FUObjectExport NewExport(JsonValueAsObject);
 
@@ -488,16 +452,15 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 			return;
 		}
 
-		/* FGameplayTagContainer (handled from UEParse data) */
 		if (StructProperty->Struct == FGameplayTagContainer::StaticStruct()) {
 			FGameplayTagContainer* GameplayTagContainerStr = static_cast<FGameplayTagContainer*>(OutValue);
 
 			auto GameplayTags = JsonValue->AsArray();
 
-			for (TSharedPtr GameplayTagValue : GameplayTags) {
+			for (const TSharedPtr<FJsonValue>& GameplayTagValue : GameplayTags) {
 				FString GameplayTagString = GameplayTagValue->AsString();
 				FGameplayTag GameplayTag = FGameplayTag::RequestGameplayTag(FName(*GameplayTagString));
-				
+
 				GameplayTagContainerStr->AddTag(GameplayTag);
 			}
 
@@ -555,34 +518,34 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 
 			SoftJsonObjectProperty = NewJsonValue->AsObject();
 			PathString = SoftJsonObjectProperty->GetStringField(TEXT("AssetPathName"));
-			
+
 			if (PathString != "") {
 				FSoftObjectPtr* ObjectPtr = static_cast<FSoftObjectPtr*>(OutValue);
 				*ObjectPtr = FSoftObjectPath(PathString);
 
 				if (!ObjectPtr->LoadSynchronous()) {
-					/* Try importing it using Cloud */
 					FString PackagePath;
 					FString AssetName;
 					PathString.Split(".", &PackagePath, &AssetName);
 					TObjectPtr<UObject> T = nullptr;
 
 					FString PropertyClassName = "DataAsset";
-				
+
 					IImporter::DownloadWrapper(T, PropertyClassName, AssetName, PackagePath);
 				}
 			}
 		}
-		
-		/* JSON for FGuids are FStrings */
+
 		FString OutString;
-		
+
 		if (JsonValue->TryGetString(OutString)) {
-			FGuid GUID = StringToGuid(OutString); /* Create GUID from String */
+			FGuid GUID = StringToGuid(OutString);
 
 			TSharedRef<FJsonObject> SharedObject = MakeShareable(new FJsonObject());
-			SharedObject->SetNumberField(TEXT("A"), GUID.A); SharedObject->SetNumberField(TEXT("B"), GUID.B);
-			SharedObject->SetNumberField(TEXT("C"), GUID.C); SharedObject->SetNumberField(TEXT("D"), GUID.D);
+			SharedObject->SetNumberField(TEXT("A"), GUID.A);
+			SharedObject->SetNumberField(TEXT("B"), GUID.B);
+			SharedObject->SetNumberField(TEXT("C"), GUID.C);
+			SharedObject->SetNumberField(TEXT("D"), GUID.D);
 
 			const TSharedRef<FJsonValue> NewValue = MakeShareable(new FJsonValueObject(SharedObject));
 			NewJsonValue = NewValue;
@@ -591,7 +554,7 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 		if (StructProperty->Struct == FFontData::StaticStruct()) {
 			FFontData* FontData = static_cast<FFontData*>(OutValue);
 			TSharedPtr<FJsonObject> JsonObject = NewJsonValue->AsObject();
-			
+
 			if (JsonObject->HasField(TEXT("LocalFontFaceAsset"))) {
 				TSharedPtr<FJsonObject> LocalFontFaceExport = JsonObject->GetObjectField(TEXT("LocalFontFaceAsset"));
 
@@ -600,7 +563,7 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 				}
 
 				TObjectPtr<UFontFace> FontFacePtr;
-				
+
 				Importer->SetParent(ObjectSerializer->Parent);
 				Importer->LoadExport(&LocalFontFaceExport, FontFacePtr);
 
@@ -610,24 +573,16 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 			}
 		}
 
-		/* To serialize struct, we need its type and value pointer, because struct value doesn't contain type information */
 		DeserializeStruct(StructProperty->Struct, NewJsonValue->AsObject().ToSharedRef(), OutValue, OptionalOuter);
 
-		/* An input that named one of a convert node's outputs has to follow that output onto the
-		 * root the material graph built for it. Every connection in the graph passes through here,
-		 * which is what catches the material's own BaseColor/Emissive inputs as well as the ones
-		 * sitting on expressions. */
 		if (ConvertOutputRoots.Num() > 0) {
 			RemapConvertOutput(StructProperty->Struct, OutValue);
 		}
 
-		/* A material attribute is recorded by its position in a list this engine may not lay out
-		 * the same way, so the index is put back onto the attribute it was written against */
 		if (Property->GetCPPType(nullptr, CPPF_None) == TEXT("FExpressionInput")) {
 			RemapBreakMaterialAttributesOutput(static_cast<FExpressionInput*>(OutValue));
 		}
-		
-		/* If there's a missing distribution, create it from the lookup table */
+
 		if (IsStructPropertyADistribution(StructProperty)) {
 			if (FRawDistribution* RawDistribution = static_cast<FRawDistribution*>(OutValue)) {
 				const bool IsFloat = IsFloatDistribution(StructProperty);
@@ -641,14 +596,12 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 		}
 	}
 	else if (const FByteProperty* ByteProperty = CastField<const FByteProperty>(Property)) {
-		/* If we have a string provided, make sure Enum is not null */
 		if (JsonValue->Type == EJson::String) {
 			FString EnumAsString = JsonValue->AsString();
 
 			check(ByteProperty->Enum);
 			int64 EnumerationValue = ByteProperty->Enum->GetValueByNameString(EnumAsString);
 
-			/* Somethings wrong!!! */
 			if (EnumerationValue == -1) {
 				UE_LOG(LogReflection, Warning, TEXT("Invalid enum value for property '%s'!"), *Property->GetName());
 
@@ -665,22 +618,19 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 
 				EnumerationValue = 0;
 			}
-			
+
 			ByteProperty->SetIntPropertyValue(OutValue, EnumerationValue);
 		}
 		else {
-			/* Should be a number, set property value accordingly */
 			const int64 NumberValue = static_cast<int64>(NewJsonValue->AsNumber());
 			ByteProperty->SetIntPropertyValue(OutValue, NumberValue);
 		}
-		/* Primitives below, they are serialized as plain json values */
 	}
 	else if (const FNumericProperty* NumberProperty = CastField<const FNumericProperty>(Property)) {
 		const double NumberValue = NewJsonValue->AsNumber();
 		if (NumberProperty->IsFloatingPoint()) {
 			NumberProperty->SetFloatingPointPropertyValue(OutValue, NumberValue);
 		}
-		
 		else {
 			NumberProperty->SetIntPropertyValue(OutValue, static_cast<int64>(NumberValue));
 		}
@@ -699,8 +649,7 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 		if (EnumAsString.Contains("::")) {
 			EnumAsString.Split("::", nullptr, &EnumAsString);
 		}
-		
-		/* Prefer readable enum names in result json to raw numbers */
+
 		int64 EnumerationValue = EnumProperty->GetEnum()->GetValueByNameString(EnumAsString);
 
 		if (EnumerationValue != INDEX_NONE) {
@@ -708,20 +657,17 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 		}
 	}
 	else if (Property->IsA<FNameProperty>()) {
-		/* Name is perfectly representable as string */
 		const FString NameString = NewJsonValue->AsString();
 		*static_cast<FName*>(OutValue) = *NameString;
 	}
 	else if (const FTextProperty* TextProperty = CastField<const FTextProperty>(Property)) {
 		const FString SerializedValue = NewJsonValue->AsString();
-		
+
 		if (!SerializedValue.IsEmpty()) {
 			FTextStringHelper::ReadFromBuffer(*SerializedValue, *static_cast<FText*>(OutValue));
 		} else {
-			/* TODO: Somehow add other needed things like Namespace, Key, and LocalizedString */
 			TSharedPtr<FJsonObject> Object = NewJsonValue->AsObject().ToSharedRef();
 
-			/* Retrieve properties */
 			FString TextNamespace = Object->GetStringField(TEXT("Namespace"));
 			FString UniqueKey = Object->GetStringField(TEXT("Key"));
 			FString SourceString = Object->GetStringField(TEXT("SourceString"));
@@ -730,17 +676,14 @@ void UPropertySerializer::DeserializePropertyValue(FProperty* Property, const TS
 			if (Object->HasField(TEXT("CultureInvariantString"))) {
 				TextProperty->SetPropertyValue(OutValue, FText::FromString(*Object->GetStringField(TEXT("CultureInvariantString"))));
 			} else {
-	#if UE5_8_BEYOND
-				/* ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText was removed in 5.8 */
+#if UE5_8_BEYOND
 				TextProperty->SetPropertyValue(OutValue, FText::FromString(SourceString));
-	#else
+#else
 				TextProperty->SetPropertyValue(OutValue, FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*SourceString, *TextNamespace, *UniqueKey));
-	#endif
+#endif
 			}
 		}
 	}
-	/* FFieldPath, and the property type that holds one, came in with FField in 4.25. A property
-	 * reference is still a plain UObject reference before that, handled by the object branch. */
 #if !UE4_24_BELOW
 	else if (CastField<const FFieldPathProperty>(Property)) {
 		FFieldPath FieldPath;
@@ -764,16 +707,14 @@ void UPropertySerializer::AddStructSerializer(UScriptStruct* Struct, const TShar
 }
 
 bool UPropertySerializer::ShouldDeserializeProperty(FProperty* Property) const {
-	/* Skip deprecated properties */
 	if (Property->HasAnyPropertyFlags(CPF_Deprecated)) {
 		return false;
 	}
-	
-	/* Skip blacklisted properties */
+
 	if (this != nullptr && this && BlacklistedProperties.IsValidIndex(0) && BlacklistedProperties.Contains(Property)) {
 		return false;
 	}
-	
+
 	return true;
 }
 

@@ -1,3 +1,4 @@
+
 /* Copyright Reflection Contributors 2024-2026 */
 
 #pragma once
@@ -19,7 +20,7 @@
  */
 class REFLECTION_API Cloud {
 public:
-	static inline FString URL = TEXT("http://localhost:1500");
+	static const FString URL;
 
 	/* Status ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 public:
@@ -39,7 +40,7 @@ public:
 	};
 
 public:
-	static inline FString MetadataURL = TEXT("/api/metadata");
+	static const FString MetadataURL;
 
 	static void Update(TFunction<void(bool)> OnResponse);
 
@@ -53,7 +54,7 @@ public:
 
 	/* Export Endpoints ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 public:
-	static inline FString ExportURL = TEXT("/api/export");
+	static const FString ExportURL;
 
 	class REFLECTION_API Export {
 	public:
@@ -75,7 +76,7 @@ public:
 
 	/* Folder Endpoints ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 public:
-	static inline FString FolderPathsURL = TEXT("/api/folder/paths");
+	static const FString FolderPathsURL;
 
 	class REFLECTION_API Folder {
 	public:

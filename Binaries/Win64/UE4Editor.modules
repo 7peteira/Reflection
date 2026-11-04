@@ -1,0 +1,9 @@
+{
+	"BuildId": "70657700-2e6f-4f80-a73a-1da12e3a414d",
+	"Modules": 
+	{
+		"Reflection": "UE4Editor-Reflection.dll",
+		"ReflectionDetex": "UE4Editor-ReflectionDetex.dll",
+		"ReflectionNVTT": "UE4Editor-ReflectionNVTT.dll"
+	}
+}

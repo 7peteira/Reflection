@@ -1,3 +1,4 @@
+
 /* Copyright Reflection Contributors 2024-2026 */
 
 #pragma once
@@ -10,21 +11,25 @@
 #include "Modules/ModuleInterface.h"
 #endif
 
-struct GitHub {
-    static inline FString URL = "https://github.com/JsonAsAsset/Reflection";
-    
-    struct README {
-        static inline FString Link = URL + "?tab=readme-ov-file#asset-types";
-        static inline FString AssetTypes = Link + "#asset-types";
-        static inline FString Cloud = URL + "#cloud";
+struct GitHub
+{
+    static const FString URL;
+
+    struct README
+    {
+        static const FString Link;
+        static const FString AssetTypes;
+        static const FString Cloud;
     };
 };
 
-struct Donation {
-    static inline FString KO_FI = "https://ko-fi.com/tectory";
+struct Donation
+{
+    static const FString KO_FI;
 };
 
-class FReflectionModule : public IModuleInterface {
+class FReflectionModule : public IModuleInterface
+{
 public:
     virtual void StartupModule() override;
     virtual void ShutdownModule() override;

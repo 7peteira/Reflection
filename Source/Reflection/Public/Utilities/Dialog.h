@@ -1,3 +1,4 @@
+
 /* Copyright Reflection Contributors 2024-2026 */
 
 #pragma once
@@ -28,24 +29,30 @@
 
 /* Prompts ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 inline void SpawnPrompt(const FString& Title, const FString& Text) {
-	FText DialogTitle = FText::FromString(Title);
+	const FText DialogTitle = FText::FromString(Title);
 	const FText DialogMessage = FText::FromString(Text);
 
 	FMessageDialog::Open(EAppMsgType::Ok, DialogMessage);
 }
 
-inline auto SpawnYesNoPrompt = [](const FString& Title, const FString& Text, const TFunction<void(bool)>& OnResponse) {
+inline void SpawnYesNoPrompt(
+	const FString& Title,
+	const FString& Text,
+	const TFunction<void(bool)>& OnResponse)
+{
 	const FText DialogTitle = FText::FromString(Title);
 	const FText DialogMessage = FText::FromString(Text);
 
 #if UE5_3_BEYOND
-	const EAppReturnType::Type Response = FMessageDialog::Open(EAppMsgType::YesNo, DialogMessage, DialogTitle);
+	const EAppReturnType::Type Response =
+		FMessageDialog::Open(EAppMsgType::YesNo, DialogMessage, DialogTitle);
 #else
-	const EAppReturnType::Type Response = FMessageDialog::Open(EAppMsgType::YesNo, DialogMessage, &DialogTitle);
+	const EAppReturnType::Type Response =
+		FMessageDialog::Open(EAppMsgType::YesNo, DialogMessage, &DialogTitle);
 #endif
 
 	OnResponse(Response == EAppReturnType::Yes);
-};
+}
 
 /*
  * Asks the user for some text, seeded with whatever is already in InOutText.
@@ -167,7 +174,7 @@ inline TArray<FString> OpenFileDialog(const FString& Title, const FString& Type)
 
 	if (IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get()) {
 		constexpr uint32 SelectionFlag = 1;
-		
+
 		DesktopPlatform->OpenFileDialog(ParentWindowHandle, Title, DefaultPath, FString(""), Type, SelectionFlag, ReturnValue);
 	}
 
@@ -180,6 +187,7 @@ inline FString OpenFolderDialog(const FString& Title, const FString& DefaultPath
 
 	const IMainFrameModule& MainFrameModule = IMainFrameModule::Get();
 	const TSharedPtr<SWindow> MainWindow = MainFrameModule.GetParentWindow();
+
 	if (MainWindow.IsValid() && MainWindow->GetNativeWindow().IsValid()) {
 		ParentWindowHandle = MainWindow->GetNativeWindow()->GetOSWindowHandle();
 	}

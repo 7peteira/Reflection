@@ -1,3 +1,4 @@
+
 /* Copyright Reflection Contributors 2024-2026 */
 
 #pragma once
@@ -21,13 +22,13 @@ namespace NotificationBudget {
 
 	/* Already on screen. Weak: the manager owns them, and the handle going stale is how one
 	 * expiring is noticed without anything having to tick. */
-	inline TArray<TWeakPtr<SNotificationItem>> Live;
+	extern TArray<TWeakPtr<SNotificationItem>> Live;
 
 	/* Queued for the next tick and not built yet. Counted because during an import every
 	 * notification takes that route, so without this the cap only sees an empty screen. */
-	inline int32 Pending = 0;
+	extern int32 Pending;
 
-	inline int32 Suppressed = 0;
+	extern int32 Suppressed;
 
 	inline bool AtCap() {
 		Live.RemoveAll([](const TWeakPtr<SNotificationItem>& Item) {
@@ -64,9 +65,11 @@ inline TSharedPtr<SNotificationItem> AddNotificationWhenSafe(const FNotification
 		GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateLambda([Info, CompletionState] {
 			NotificationBudget::Pending--;
 
-			if (const TSharedPtr<SNotificationItem> DeferredItem = FSlateNotificationManager::Get().AddNotification(Info)) {
-				DeferredItem->SetCompletionState(CompletionState);
+			const TSharedPtr<SNotificationItem> DeferredItem =
+				FSlateNotificationManager::Get().AddNotification(Info);
 
+			if (DeferredItem.IsValid()) {
+				DeferredItem->SetCompletionState(CompletionState);
 				NotificationBudget::Track(DeferredItem);
 			}
 		}));
@@ -74,11 +77,11 @@ inline TSharedPtr<SNotificationItem> AddNotificationWhenSafe(const FNotification
 		return nullptr;
 	}
 
-	const TSharedPtr<SNotificationItem> NotificationPtr = FSlateNotificationManager::Get().AddNotification(Info);
+	const TSharedPtr<SNotificationItem> NotificationPtr =
+		FSlateNotificationManager::Get().AddNotification(Info);
 
 	if (NotificationPtr.IsValid()) {
 		NotificationPtr->SetCompletionState(CompletionState);
-
 		NotificationBudget::Track(NotificationPtr);
 	}
 
@@ -90,7 +93,6 @@ inline TSharedPtr<SNotificationItem> AddNotificationWhenSafe(const FNotification
 inline void SetNotificationSubTextWithSuppressed(FNotificationInfo& Info, const FText& SubText) {
 	if (NotificationBudget::Suppressed == 0) {
 		SetNotificationSubText(Info, SubText);
-
 		return;
 	}
 
@@ -113,7 +115,6 @@ inline auto AppendNotification(const FText& Text, const FText& SubText, const fl
 	/* Nobody is waiting on this one, so it is the kind the cap is allowed to drop */
 	if (NotificationBudget::AtCap()) {
 		NotificationBudget::Suppressed++;
-
 		return;
 	}
 
@@ -136,7 +137,6 @@ inline auto AppendNotification(const FText& Text, const FText& SubText, float Ex
 	/* Nobody is waiting on this one, so it is the kind the cap is allowed to drop */
 	if (NotificationBudget::AtCap()) {
 		NotificationBudget::Suppressed++;
-
 		return;
 	}
 
@@ -152,9 +152,15 @@ inline auto AppendNotification(const FText& Text, const FText& SubText, float Ex
 	AddNotificationWhenSafe(Info, CompletionState);
 }
 
-inline TSharedPtr<SNotificationItem> AppendNotificationWithHandler(const FText& Text, const FText& SubText, const float ExpireDuration,
-	const FSlateBrush* SlateBrush, const SNotificationItem::ECompletionState CompletionState, const bool UseSuccessFailIcons,
-	const float WidthOverride, const TFunction<void(FNotificationInfo&)>& PreAddHandler = nullptr)
+inline TSharedPtr<SNotificationItem> AppendNotificationWithHandler(
+	const FText& Text,
+	const FText& SubText,
+	const float ExpireDuration,
+	const FSlateBrush* SlateBrush,
+	const SNotificationItem::ECompletionState CompletionState,
+	const bool UseSuccessFailIcons,
+	const float WidthOverride,
+	const TFunction<void(FNotificationInfo&)>& PreAddHandler = nullptr)
 {
 	FNotificationInfo Info(Text);
 	Info.ExpireDuration = ExpireDuration;
