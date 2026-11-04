@@ -1,4 +1,4 @@
-/* pyright Reflection Contributors 2024-2026 */
+/* Copyright Reflection Contributors 2024-2026 */
 
 #include "Containers/Export.h"
 #include "Engine/EngineUtilities.h"

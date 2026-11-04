@@ -1,4 +1,4 @@
-/* Copyright Reflction Contributors 2024-2026 */
+/* Copyright Reflection Contributors 2024-2026 */
 
 #include "Importers/Constructor/ImportJob.h"
 
